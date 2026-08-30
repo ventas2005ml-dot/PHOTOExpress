@@ -1,14 +1,6 @@
 const express = require('express')
 const router = express.Router()
-const {
-  getConfiguracion,
-  actualizarConfiguracion,
-  calcularMonto,
-  crearPago,
-  confirmarComprobante,
-  getPromos,
-  crearPromo
-} = require('./pagos.controller')
+const { getConfiguracion, actualizarConfiguracion, calcularMonto, crearPago, confirmarComprobante, getPromos, crearPromo } = require('./pagos.controller')
 
 router.get('/configuracion', getConfiguracion)
 router.put('/configuracion', actualizarConfiguracion)
