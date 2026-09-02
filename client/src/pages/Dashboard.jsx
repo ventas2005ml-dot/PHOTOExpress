@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import NuevoPedido from './NuevoPedido'
+import DetallePedido from './DetallePedido'
 
 const ESTADOS = ['pendiente', 'en_proceso', 'listo', 'entregado', 'cancelado']
 const SIGUIENTE = { pendiente: 'en_proceso', en_proceso: 'listo', listo: 'entregado' }
@@ -16,7 +17,8 @@ export default function Dashboard({ usuario, onLogout }) {
   const [pedidos, setPedidos] = useState([])
   const [filtro, setFiltro] = useState('todos')
   const [cargando, setCargando] = useState(true)
-  const [vista, setVista] = useState('lista')
+    const [vista, setVista] = useState('lista')
+  const [pedidoSeleccionado, setPedidoSeleccionado] = useState(null)
 
   const token = localStorage.getItem('token')
   const headers = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }
@@ -46,10 +48,13 @@ export default function Dashboard({ usuario, onLogout }) {
     })
     cargarPedidos()
   }
-
   if (vista === 'nuevo') {
     return <NuevoPedido usuario={usuario} onVolver={() => { setVista('lista'); cargarPedidos() }} />
   }
+  if (vista === 'detalle') {
+    return <DetallePedido pedidoId={pedidoSeleccionado} usuario={usuario} onVolver={() => { setVista('lista'); cargarPedidos() }} />
+  }
+  
 
   const pendientes = pedidos.filter(p => p.estado === 'pendiente').length
   const enProceso = pedidos.filter(p => p.estado === 'en_proceso').length
@@ -118,7 +123,7 @@ export default function Dashboard({ usuario, onLogout }) {
                 <tr><td colSpan="6" className="text-center py-8 text-gray-400 text-sm">No hay pedidos</td></tr>
               ) : pedidos.map(p => (
                 <tr key={p.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
-                  <td className="px-4 py-3 font-medium text-blue-600 text-sm">{p.codigo}</td>
+                  <td className="px-4 py-3 font-medium text-blue-600 text-sm cursor-pointer hover:underline" onClick={() => { setPedidoSeleccionado(p.id); setVista('detalle') }}>{p.codigo}</td>
                   <td className="px-4 py-3 text-sm text-gray-700">{p.cliente_nombre || '—'}</td>
                   <td className="px-4 py-3 text-sm text-gray-500 max-w-xs truncate">{p.notas || '—'}</td>
                   <td className="px-4 py-3 text-sm font-medium text-gray-800">${parseFloat(p.total || 0).toLocaleString()}</td>
