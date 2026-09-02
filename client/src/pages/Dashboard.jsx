@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import NuevoPedido from './NuevoPedido'
 
 const ESTADOS = ['pendiente', 'en_proceso', 'listo', 'entregado', 'cancelado']
 const SIGUIENTE = { pendiente: 'en_proceso', en_proceso: 'listo', listo: 'entregado' }
@@ -15,14 +16,15 @@ export default function Dashboard({ usuario, onLogout }) {
   const [pedidos, setPedidos] = useState([])
   const [filtro, setFiltro] = useState('todos')
   const [cargando, setCargando] = useState(true)
+  const [vista, setVista] = useState('lista')
 
   const token = localStorage.getItem('token')
-  const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
+  const headers = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }
 
   const cargarPedidos = async () => {
     setCargando(true)
     try {
-      const url = filtro === 'todos' ? '/api/pedidos' : `/api/pedidos?estado=${filtro}`
+      const url = filtro === 'todos' ? '/api/pedidos' : '/api/pedidos?estado=' + filtro
       const res = await fetch(url, { headers })
       const data = await res.json()
       setPedidos(data)
@@ -38,12 +40,15 @@ export default function Dashboard({ usuario, onLogout }) {
   const avanzarEstado = async (pedido) => {
     const nuevoEstado = SIGUIENTE[pedido.estado]
     if (!nuevoEstado) return
-    await fetch(`/api/pedidos/${pedido.id}/estado`, {
-      method: 'PUT',
-      headers,
+    await fetch('/api/pedidos/' + pedido.id + '/estado', {
+      method: 'PUT', headers,
       body: JSON.stringify({ estado: nuevoEstado })
     })
     cargarPedidos()
+  }
+
+  if (vista === 'nuevo') {
+    return <NuevoPedido usuario={usuario} onVolver={() => { setVista('lista'); cargarPedidos() }} />
   }
 
   const pendientes = pedidos.filter(p => p.estado === 'pendiente').length
@@ -53,7 +58,6 @@ export default function Dashboard({ usuario, onLogout }) {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
       <div className="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <span className="text-xl">📷</span>
@@ -61,45 +65,40 @@ export default function Dashboard({ usuario, onLogout }) {
           <span className="text-sm text-gray-400">Panel de empleados</span>
         </div>
         <div className="flex items-center gap-3">
+          <button onClick={() => setVista('nuevo')}
+            className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-blue-700">
+            + Nuevo pedido
+          </button>
           <span className="text-sm text-gray-600">{usuario.nombre}</span>
           <button onClick={onLogout} className="text-sm text-gray-400 hover:text-gray-600">Salir</button>
         </div>
       </div>
 
       <div className="max-w-6xl mx-auto px-6 py-6">
-        {/* Stats */}
         <div className="grid grid-cols-4 gap-4 mb-6">
           {[
             { label: 'Pendientes', valor: pendientes, color: 'text-yellow-600' },
             { label: 'En proceso', valor: enProceso, color: 'text-blue-600' },
             { label: 'Listos', valor: listos, color: 'text-green-600' },
-            { label: 'Total del día', valor: `$${totalDia.toLocaleString()}`, color: 'text-gray-800' }
+            { label: 'Total del día', valor: '$' + totalDia.toLocaleString(), color: 'text-gray-800' }
           ].map(stat => (
             <div key={stat.label} className="bg-white rounded-xl border border-gray-200 p-4">
               <p className="text-xs text-gray-500 mb-1">{stat.label}</p>
-              <p className={`text-2xl font-semibold ${stat.color}`}>{stat.valor}</p>
+              <p className={'text-2xl font-semibold ' + stat.color}>{stat.valor}</p>
             </div>
           ))}
         </div>
 
-        {/* Filtros */}
         <div className="flex gap-2 mb-4">
           {['todos', ...ESTADOS].map(e => (
-            <button
-              key={e}
-              onClick={() => setFiltro(e)}
-              className={`px-3 py-1 rounded-full text-sm border transition-colors ${
-                filtro === e
-                  ? 'bg-blue-600 text-white border-blue-600'
-                  : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'
-              }`}
-            >
+            <button key={e} onClick={() => setFiltro(e)}
+              className={'px-3 py-1 rounded-full text-sm border transition-colors ' +
+                (filtro === e ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300')}>
               {e.replace('_', ' ')}
             </button>
           ))}
         </div>
 
-        {/* Tabla */}
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
           <table className="w-full">
             <thead>
@@ -124,16 +123,13 @@ export default function Dashboard({ usuario, onLogout }) {
                   <td className="px-4 py-3 text-sm text-gray-500 max-w-xs truncate">{p.notas || '—'}</td>
                   <td className="px-4 py-3 text-sm font-medium text-gray-800">${parseFloat(p.total || 0).toLocaleString()}</td>
                   <td className="px-4 py-3">
-                    <span className={`text-xs px-2 py-1 rounded-full font-medium ${BADGE[p.estado]}`}>
+                    <span className={'text-xs px-2 py-1 rounded-full font-medium ' + BADGE[p.estado]}>
                       {p.estado.replace('_', ' ')}
                     </span>
                   </td>
                   <td className="px-4 py-3">
                     {SIGUIENTE[p.estado] ? (
-                      <button
-                        onClick={() => avanzarEstado(p)}
-                        className="text-xs text-blue-600 hover:text-blue-800 font-medium"
-                      >
+                      <button onClick={() => avanzarEstado(p)} className="text-xs text-blue-600 hover:text-blue-800 font-medium">
                         {LABEL_BTN[p.estado]} →
                       </button>
                     ) : (
