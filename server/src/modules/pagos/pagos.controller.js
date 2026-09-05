@@ -15,7 +15,11 @@ const actualizarConfiguracion = async (req, res) => {
   try {
     const updates = req.body
     for (const [clave, valor] of Object.entries(updates)) {
-      await db.query('UPDATE configuracion SET valor = $1 WHERE clave = $2', [valor, clave])
+      await db.query(
+        `INSERT INTO configuracion (clave, valor) VALUES ($1, $2)
+         ON CONFLICT (clave) DO UPDATE SET valor = EXCLUDED.valor`,
+        [clave, valor]
+      )
     }
     const result = await db.query('SELECT * FROM configuracion')
     const config = {}
