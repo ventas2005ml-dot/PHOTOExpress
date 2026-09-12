@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 
-const TABS = ['estadisticas', 'reportes', 'catalogo', 'promos', 'configuracion']
+const TABS = ['estadisticas', 'reportes', 'catalogo', 'promos', 'usuarios', 'configuracion']
 
 export default function Admin({ usuario, onLogout }) {
   const [stats, setStats] = useState(null)
@@ -8,11 +8,13 @@ export default function Admin({ usuario, onLogout }) {
   const [catalogo, setCatalogo] = useState([])
   const [categorias, setCategorias] = useState([])
   const [promos, setPromos] = useState([])
+  const [usuarios, setUsuarios] = useState([])
   const [tab, setTab] = useState('estadisticas')
   const [guardando, setGuardando] = useState(false)
   const [mensaje, setMensaje] = useState('')
   const [nuevoServicio, setNuevoServicio] = useState({ categoria_id: '', nombre: '', descripcion: '', precio: '' })
   const [nuevaPromo, setNuevaPromo] = useState({ nombre: '', descripcion: '', precio: '' })
+  const [nuevoEmpleado, setNuevoEmpleado] = useState({ nombre: '', email: '', password: '' })
   const [reporte, setReporte] = useState(null)
   const [fechaDesde, setFechaDesde] = useState(new Date(new Date().setDate(1)).toISOString().split('T')[0])
   const [fechaHasta, setFechaHasta] = useState(new Date().toISOString().split('T')[0])
@@ -27,6 +29,7 @@ export default function Admin({ usuario, onLogout }) {
     fetch('/api/catalogo/servicios', { headers }).then(r => r.json()).then(setCatalogo)
     fetch('/api/catalogo/categorias', { headers }).then(r => r.json()).then(setCategorias)
     fetch('/api/pagos/promos', { headers }).then(r => r.json()).then(setPromos)
+    fetch('/api/usuarios', { headers }).then(r => r.json()).then(setUsuarios)
   }, [])
 
   const guardarConfig = async () => {
@@ -52,6 +55,17 @@ export default function Admin({ usuario, onLogout }) {
     fetch('/api/pagos/promos', { headers }).then(r => r.json()).then(setPromos)
     setNuevaPromo({ nombre: '', descripcion: '', precio: '' })
     setMensaje('Promo agregada ✓')
+    setTimeout(() => setMensaje(''), 3000)
+  }
+
+  const crearEmpleado = async () => {
+    if (!nuevoEmpleado.nombre || !nuevoEmpleado.email || !nuevoEmpleado.password) return
+    const res = await fetch('/api/usuarios/empleado', { method: 'POST', headers, body: JSON.stringify(nuevoEmpleado) })
+    const data = await res.json()
+    if (!res.ok) { setMensaje('Error: ' + data.error); setTimeout(() => setMensaje(''), 3000); return }
+    fetch('/api/usuarios', { headers }).then(r => r.json()).then(setUsuarios)
+    setNuevoEmpleado({ nombre: '', email: '', password: '' })
+    setMensaje('Empleado creado ✓')
     setTimeout(() => setMensaje(''), 3000)
   }
 
@@ -308,6 +322,64 @@ export default function Admin({ usuario, onLogout }) {
                       <td className="px-4 py-3 text-sm font-medium text-gray-800">{p.nombre}</td>
                       <td className="px-4 py-3 text-sm text-gray-500">{p.descripcion}</td>
                       <td className="px-4 py-3 text-sm font-medium text-gray-800">${parseFloat(p.precio).toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {tab === 'usuarios' && (
+          <div className="space-y-4">
+            <div className="bg-white rounded-xl border border-gray-200 p-4">
+              <h3 className="text-sm font-medium text-gray-700 mb-3">Crear empleado</h3>
+              <div className="grid grid-cols-3 gap-3 mb-3">
+                <div>
+                  <label className="text-xs text-gray-500 block mb-1">Nombre</label>
+                  <input value={nuevoEmpleado.nombre} onChange={e => setNuevoEmpleado({ ...nuevoEmpleado, nombre: e.target.value })}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Nombre completo"/>
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 block mb-1">Email</label>
+                  <input type="email" value={nuevoEmpleado.email} onChange={e => setNuevoEmpleado({ ...nuevoEmpleado, email: e.target.value })}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="email@ejemplo.com"/>
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 block mb-1">Contraseña</label>
+                  <input type="password" value={nuevoEmpleado.password} onChange={e => setNuevoEmpleado({ ...nuevoEmpleado, password: e.target.value })}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Mínimo 6 caracteres"/>
+                </div>
+              </div>
+              <button onClick={crearEmpleado} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700">
+                Crear empleado
+              </button>
+            </div>
+            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-gray-100 bg-gray-50">
+                    <th className="text-left text-xs font-medium text-gray-500 px-4 py-3">Nombre</th>
+                    <th className="text-left text-xs font-medium text-gray-500 px-4 py-3">Email</th>
+                    <th className="text-left text-xs font-medium text-gray-500 px-4 py-3">Rol</th>
+                    <th className="text-left text-xs font-medium text-gray-500 px-4 py-3">Estado</th>
+                    <th className="text-left text-xs font-medium text-gray-500 px-4 py-3">Creado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {usuarios.length === 0 ? (
+                    <tr><td colSpan="5" className="text-center py-6 text-gray-400 text-sm">No hay usuarios</td></tr>
+                  ) : usuarios.map(u => (
+                    <tr key={u.id} className="border-b border-gray-50 hover:bg-gray-50">
+                      <td className="px-4 py-3 text-sm text-gray-800">{u.nombre}</td>
+                      <td className="px-4 py-3 text-sm text-gray-500">{u.email}</td>
+                      <td className="px-4 py-3 text-sm capitalize text-gray-600">{u.rol}</td>
+                      <td className="px-4 py-3">
+                        <span className={'text-xs px-2 py-1 rounded-full font-medium ' + (u.activo ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500')}>
+                          {u.activo ? 'Activo' : 'Inactivo'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-400">{new Date(u.creado_en).toLocaleDateString()}</td>
                     </tr>
                   ))}
                 </tbody>
