@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 
-const TABS = ['estadisticas', 'reportes', 'catalogo', 'promos', 'usuarios', 'configuracion']
+const TABS = ['estadisticas', 'reportes', 'catalogo', 'promos', 'pedidos', 'usuarios', 'configuracion']
 
 export default function Admin({ usuario, onLogout }) {
   const [stats, setStats] = useState(null)
@@ -16,6 +16,10 @@ export default function Admin({ usuario, onLogout }) {
   const [nuevaPromo, setNuevaPromo] = useState({ nombre: '', descripcion: '', precio: '' })
   const [nuevoEmpleado, setNuevoEmpleado] = useState({ nombre: '', email: '', password: '' })
   const [editandoServicio, setEditandoServicio] = useState(null)
+  const [pedidos, setPedidos] = useState([])
+  const [busquedaPedido, setBusquedaPedido] = useState('')
+  const [filtroPedido, setFiltroPedido] = useState('')
+  const [cargandoPedidos, setCargandoPedidos] = useState(false)
   const [reporte, setReporte] = useState(null)
   const [fechaDesde, setFechaDesde] = useState(new Date(new Date().setDate(1)).toISOString().split('T')[0])
   const [fechaHasta, setFechaHasta] = useState(new Date().toISOString().split('T')[0])
@@ -57,6 +61,15 @@ export default function Admin({ usuario, onLogout }) {
     setNuevaPromo({ nombre: '', descripcion: '', precio: '' })
     setMensaje('Promo agregada ✓')
     setTimeout(() => setMensaje(''), 3000)
+  }
+
+  const buscarPedidos = async () => {
+    setCargandoPedidos(true)
+    const url = '/api/pedidos' + (filtroPedido ? `?estado=${filtroPedido}` : '')
+    const res = await fetch(url, { headers })
+    const data = await res.json()
+    setPedidos(data)
+    setCargandoPedidos(false)
   }
 
   const guardarServicio = async () => {
@@ -368,6 +381,88 @@ export default function Admin({ usuario, onLogout }) {
                 </tbody>
               </table>
             </div>
+          </div>
+        )}
+
+        {tab === 'pedidos' && (
+          <div className="space-y-4">
+            <div className="bg-white rounded-xl border border-gray-200 p-4">
+              <div className="flex gap-3 items-end">
+                <div>
+                  <label className="text-xs text-gray-500 block mb-1">Estado</label>
+                  <select value={filtroPedido} onChange={e => setFiltroPedido(e.target.value)}
+                    className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value="">Todos</option>
+                    <option value="pendiente">Pendiente</option>
+                    <option value="en_proceso">En proceso</option>
+                    <option value="listo">Listo</option>
+                    <option value="entregado">Entregado</option>
+                    <option value="cancelado">Cancelado</option>
+                  </select>
+                </div>
+                <div className="flex-1">
+                  <label className="text-xs text-gray-500 block mb-1">Buscar por código o cliente</label>
+                  <input value={busquedaPedido} onChange={e => setBusquedaPedido(e.target.value)}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="PE-00001 o nombre del cliente"/>
+                </div>
+                <button onClick={buscarPedidos} disabled={cargandoPedidos}
+                  className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
+                  {cargandoPedidos ? 'Buscando...' : 'Buscar'}
+                </button>
+              </div>
+            </div>
+            {pedidos.length > 0 && (
+              <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-gray-100 bg-gray-50">
+                      <th className="text-left text-xs font-medium text-gray-500 px-4 py-3">Código</th>
+                      <th className="text-left text-xs font-medium text-gray-500 px-4 py-3">Cliente</th>
+                      <th className="text-left text-xs font-medium text-gray-500 px-4 py-3">Estado</th>
+                      <th className="text-left text-xs font-medium text-gray-500 px-4 py-3">Total</th>
+                      <th className="text-left text-xs font-medium text-gray-500 px-4 py-3">Fecha</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pedidos
+                      .filter(p => {
+                        if (!busquedaPedido) return true
+                        const q = busquedaPedido.toLowerCase()
+                        return p.codigo?.toLowerCase().includes(q) || p.cliente_nombre?.toLowerCase().includes(q) || p.cliente_email?.toLowerCase().includes(q)
+                      })
+                      .map(p => (
+                        <tr key={p.id} className="border-b border-gray-50 hover:bg-gray-50">
+                          <td className="px-4 py-3 text-sm font-medium text-blue-600">{p.codigo}</td>
+                          <td className="px-4 py-3 text-sm text-gray-700">{p.cliente_nombre || p.cliente_email || '—'}</td>
+                          <td className="px-4 py-3">
+                            <span className={{
+                              pendiente: 'bg-yellow-100 text-yellow-700',
+                              en_proceso: 'bg-blue-100 text-blue-700',
+                              listo: 'bg-green-100 text-green-700',
+                              entregado: 'bg-gray-100 text-gray-600',
+                              cancelado: 'bg-red-100 text-red-600',
+                            }[p.estado] ? 'text-xs px-2 py-1 rounded-full font-medium ' + {
+                              pendiente: 'bg-yellow-100 text-yellow-700',
+                              en_proceso: 'bg-blue-100 text-blue-700',
+                              listo: 'bg-green-100 text-green-700',
+                              entregado: 'bg-gray-100 text-gray-600',
+                              cancelado: 'bg-red-100 text-red-600',
+                            }[p.estado] : 'text-xs px-2 py-1 rounded-full font-medium bg-gray-100 text-gray-500'}>
+                              {p.estado?.replace('_', ' ')}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-sm font-medium text-gray-800">${parseFloat(p.total || 0).toLocaleString()}</td>
+                          <td className="px-4 py-3 text-sm text-gray-400">{new Date(p.creado_en).toLocaleDateString()}</td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            {pedidos.length === 0 && !cargandoPedidos && (
+              <p className="text-center text-gray-400 text-sm py-8">Hacé una búsqueda para ver pedidos</p>
+            )}
           </div>
         )}
 
