@@ -15,6 +15,7 @@ export default function Admin({ usuario, onLogout }) {
   const [nuevoServicio, setNuevoServicio] = useState({ categoria_id: '', nombre: '', descripcion: '', precio: '' })
   const [nuevaPromo, setNuevaPromo] = useState({ nombre: '', descripcion: '', precio: '' })
   const [nuevoEmpleado, setNuevoEmpleado] = useState({ nombre: '', email: '', password: '' })
+  const [editandoServicio, setEditandoServicio] = useState(null)
   const [reporte, setReporte] = useState(null)
   const [fechaDesde, setFechaDesde] = useState(new Date(new Date().setDate(1)).toISOString().split('T')[0])
   const [fechaHasta, setFechaHasta] = useState(new Date().toISOString().split('T')[0])
@@ -55,6 +56,15 @@ export default function Admin({ usuario, onLogout }) {
     fetch('/api/pagos/promos', { headers }).then(r => r.json()).then(setPromos)
     setNuevaPromo({ nombre: '', descripcion: '', precio: '' })
     setMensaje('Promo agregada ✓')
+    setTimeout(() => setMensaje(''), 3000)
+  }
+
+  const guardarServicio = async () => {
+    const { id, nombre, descripcion, precio, activo } = editandoServicio
+    await fetch(`/api/catalogo/servicios/${id}`, { method: 'PUT', headers, body: JSON.stringify({ nombre, descripcion, precio, activo }) })
+    fetch('/api/catalogo/servicios', { headers }).then(r => r.json()).then(setCatalogo)
+    setEditandoServicio(null)
+    setMensaje('Servicio actualizado ✓')
     setTimeout(() => setMensaje(''), 3000)
   }
 
@@ -263,17 +273,48 @@ export default function Admin({ usuario, onLogout }) {
                   <tr className="border-b border-gray-100 bg-gray-50">
                     <th className="text-left text-xs font-medium text-gray-500 px-4 py-3">Servicio</th>
                     <th className="text-left text-xs font-medium text-gray-500 px-4 py-3">Categoría</th>
+                    <th className="text-left text-xs font-medium text-gray-500 px-4 py-3">Descripción</th>
                     <th className="text-left text-xs font-medium text-gray-500 px-4 py-3">Precio</th>
+                    <th className="text-left text-xs font-medium text-gray-500 px-4 py-3">Acción</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {catalogo.map(s => (
-                    <tr key={s.id} className="border-b border-gray-50 hover:bg-gray-50">
-                      <td className="px-4 py-3 text-sm text-gray-800">{s.nombre}</td>
-                      <td className="px-4 py-3 text-sm text-gray-500">{s.categoria_nombre}</td>
-                      <td className="px-4 py-3 text-sm font-medium text-gray-800">${parseFloat(s.precio).toLocaleString()}</td>
-                    </tr>
-                  ))}
+                  {catalogo.map(s => {
+                    const editando = editandoServicio?.id === s.id
+                    return (
+                      <tr key={s.id} className="border-b border-gray-50 hover:bg-gray-50">
+                        <td className="px-4 py-3 text-sm">
+                          {editando
+                            ? <input value={editandoServicio.nombre} onChange={e => setEditandoServicio({ ...editandoServicio, nombre: e.target.value })}
+                                className="border border-gray-200 rounded px-2 py-1 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+                            : <span className="text-gray-800">{s.nombre}</span>}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-500">{s.categoria_nombre}</td>
+                        <td className="px-4 py-3 text-sm">
+                          {editando
+                            ? <input value={editandoServicio.descripcion || ''} onChange={e => setEditandoServicio({ ...editandoServicio, descripcion: e.target.value })}
+                                className="border border-gray-200 rounded px-2 py-1 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+                            : <span className="text-gray-500">{s.descripcion || '—'}</span>}
+                        </td>
+                        <td className="px-4 py-3 text-sm">
+                          {editando
+                            ? <input type="number" value={editandoServicio.precio} onChange={e => setEditandoServicio({ ...editandoServicio, precio: e.target.value })}
+                                className="border border-gray-200 rounded px-2 py-1 text-sm w-24 focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+                            : <span className="font-medium text-gray-800">${parseFloat(s.precio).toLocaleString()}</span>}
+                        </td>
+                        <td className="px-4 py-3 text-sm">
+                          {editando ? (
+                            <div className="flex gap-2">
+                              <button onClick={guardarServicio} className="text-xs bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700">Guardar</button>
+                              <button onClick={() => setEditandoServicio(null)} className="text-xs text-gray-400 hover:text-gray-600">Cancelar</button>
+                            </div>
+                          ) : (
+                            <button onClick={() => setEditandoServicio({ ...s })} className="text-xs text-blue-600 hover:text-blue-800">Editar</button>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
