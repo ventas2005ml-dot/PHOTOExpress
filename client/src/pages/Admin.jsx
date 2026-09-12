@@ -20,6 +20,7 @@ export default function Admin({ usuario, onLogout }) {
   const [busquedaPedido, setBusquedaPedido] = useState('')
   const [filtroPedido, setFiltroPedido] = useState('')
   const [cargandoPedidos, setCargandoPedidos] = useState(false)
+  const [subiendoComprobante, setSubiendoComprobante] = useState(null)
   const [reporte, setReporte] = useState(null)
   const [fechaDesde, setFechaDesde] = useState(new Date(new Date().setDate(1)).toISOString().split('T')[0])
   const [fechaHasta, setFechaHasta] = useState(new Date().toISOString().split('T')[0])
@@ -60,6 +61,23 @@ export default function Admin({ usuario, onLogout }) {
     fetch('/api/pagos/promos', { headers }).then(r => r.json()).then(setPromos)
     setNuevaPromo({ nombre: '', descripcion: '', precio: '' })
     setMensaje('Promo agregada ✓')
+    setTimeout(() => setMensaje(''), 3000)
+  }
+
+  const subirComprobante = async (pagoId, archivo) => {
+    setSubiendoComprobante(pagoId)
+    const formData = new FormData()
+    formData.append('archivo', archivo)
+    const uploadRes = await fetch('/api/upload/comprobante', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + token },
+      body: formData,
+    })
+    const { url, error } = await uploadRes.json()
+    if (error) { setMensaje('Error: ' + error); setSubiendoComprobante(null); setTimeout(() => setMensaje(''), 3000); return }
+    await fetch(`/api/pagos/${pagoId}/comprobante`, { method: 'PUT', headers, body: JSON.stringify({ comprobante_url: url }) })
+    setSubiendoComprobante(null)
+    setMensaje('Comprobante subido ✓')
     setTimeout(() => setMensaje(''), 3000)
   }
 
@@ -422,6 +440,7 @@ export default function Admin({ usuario, onLogout }) {
                       <th className="text-left text-xs font-medium text-gray-500 px-4 py-3">Estado</th>
                       <th className="text-left text-xs font-medium text-gray-500 px-4 py-3">Total</th>
                       <th className="text-left text-xs font-medium text-gray-500 px-4 py-3">Fecha</th>
+                      <th className="text-left text-xs font-medium text-gray-500 px-4 py-3">Comprobante</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -436,24 +455,27 @@ export default function Admin({ usuario, onLogout }) {
                           <td className="px-4 py-3 text-sm font-medium text-blue-600">{p.codigo}</td>
                           <td className="px-4 py-3 text-sm text-gray-700">{p.cliente_nombre || p.cliente_email || '—'}</td>
                           <td className="px-4 py-3">
-                            <span className={{
+                            <span className={['text-xs px-2 py-1 rounded-full font-medium', {
                               pendiente: 'bg-yellow-100 text-yellow-700',
                               en_proceso: 'bg-blue-100 text-blue-700',
                               listo: 'bg-green-100 text-green-700',
                               entregado: 'bg-gray-100 text-gray-600',
                               cancelado: 'bg-red-100 text-red-600',
-                            }[p.estado] ? 'text-xs px-2 py-1 rounded-full font-medium ' + {
-                              pendiente: 'bg-yellow-100 text-yellow-700',
-                              en_proceso: 'bg-blue-100 text-blue-700',
-                              listo: 'bg-green-100 text-green-700',
-                              entregado: 'bg-gray-100 text-gray-600',
-                              cancelado: 'bg-red-100 text-red-600',
-                            }[p.estado] : 'text-xs px-2 py-1 rounded-full font-medium bg-gray-100 text-gray-500'}>
+                            }[p.estado] || 'bg-gray-100 text-gray-500'].join(' ')}>
                               {p.estado?.replace('_', ' ')}
                             </span>
                           </td>
                           <td className="px-4 py-3 text-sm font-medium text-gray-800">${parseFloat(p.total || 0).toLocaleString()}</td>
                           <td className="px-4 py-3 text-sm text-gray-400">{new Date(p.creado_en).toLocaleDateString()}</td>
+                          <td className="px-4 py-3 text-sm">
+                            {p.pago_id ? (
+                              <label className="cursor-pointer text-xs text-blue-600 hover:text-blue-800">
+                                {subiendoComprobante === p.pago_id ? 'Subiendo...' : 'Subir'}
+                                <input type="file" accept="image/*,application/pdf" className="hidden"
+                                  onChange={e => e.target.files[0] && subirComprobante(p.pago_id, e.target.files[0])}/>
+                              </label>
+                            ) : <span className="text-gray-300">—</span>}
+                          </td>
                         </tr>
                       ))}
                   </tbody>

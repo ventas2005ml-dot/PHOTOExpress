@@ -8,6 +8,7 @@ const pedidosRoutes = require('./modules/pedidos/pedidos.routes')
 const pagosRoutes = require('./modules/pagos/pagos.routes')
 const usuariosRoutes = require('./modules/usuarios/usuarios.routes')
 const adminRoutes = require('./modules/admin/admin.routes')
+const uploadRoutes = require('./modules/upload/upload.routes')
 
 const app = express()
 
@@ -20,6 +21,7 @@ app.use('/api/pedidos', pedidosRoutes)
 app.use('/api/pagos', pagosRoutes)
 app.use('/api/usuarios', usuariosRoutes)
 app.use('/api/admin', adminRoutes)
+app.use('/api/upload', uploadRoutes)
 
 app.get('/', (req, res) => {
   res.json({ mensaje: 'PHOTOExpress API funcionando', version: '1.0.0' })
