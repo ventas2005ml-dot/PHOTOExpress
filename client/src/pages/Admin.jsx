@@ -473,7 +473,8 @@ export default function Admin({ usuario, onLogout }) {
                     <tr className="border-b border-gray-100 bg-gray-50">
                       <th className="text-left text-xs font-medium text-gray-500 px-4 py-3">Código</th>
                       <th className="text-left text-xs font-medium text-gray-500 px-4 py-3">Cliente</th>
-                      <th className="text-left text-xs font-medium text-gray-500 px-4 py-3">Estado</th>
+                      <th className="text-left text-xs font-medium text-gray-500 px-4 py-3">Papel</th>
+                      <th className="text-left text-xs font-medium text-gray-500 px-4 py-3">Tamaño / Cant.</th>
                       <th className="text-left text-xs font-medium text-gray-500 px-4 py-3">Total</th>
                       <th className="text-left text-xs font-medium text-gray-500 px-4 py-3">Fecha</th>
                       <th className="text-left text-xs font-medium text-gray-500 px-4 py-3">Estado</th>
@@ -490,10 +491,9 @@ export default function Admin({ usuario, onLogout }) {
                         <tr key={p.id} className="border-b border-gray-50 hover:bg-gray-50">
                           <td className="px-4 py-3 text-sm font-medium text-blue-600 cursor-pointer hover:underline" onClick={() => verDetallePedido(p.id)}>{p.codigo}</td>
                           <td className="px-4 py-3 text-sm text-gray-700">{p.cliente_nombre || p.cliente_email || '—'}</td>
-                          <td className="px-4 py-3">
-                            <span className={['text-xs px-2 py-1 rounded-full font-medium', BADGE_ESTADO[p.estado] || 'bg-gray-100 text-gray-500'].join(' ')}>
-                              {p.estado?.replace('_', ' ')}
-                            </span>
+                          <td className="px-4 py-3 text-xs text-gray-600">{p.tipo_papel || '—'}</td>
+                          <td className="px-4 py-3 text-xs text-gray-600">
+                            {p.items?.map(i => `${i.servicio_nombre?.replace(/^Foto /, '')} ×${i.cantidad}`).join(', ') || '—'}
                           </td>
                           <td className="px-4 py-3 text-sm font-medium text-gray-800">${parseFloat(p.total || 0).toLocaleString()}</td>
                           <td className="px-4 py-3 text-sm text-gray-400">{new Date(p.creado_en).toLocaleDateString()}</td>

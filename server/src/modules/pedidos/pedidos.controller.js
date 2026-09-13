@@ -22,7 +22,16 @@ const getPedidos = async (req, res) => {
     }
     query += ' ORDER BY p.creado_en DESC'
     const result = await db.query(query, params)
-    res.json(result.rows)
+    
+    // Agregar items a cada pedido
+    const pedidos = await Promise.all(result.rows.map(async p => {
+      const items = await db.query(
+        'SELECT pi.cantidad, s.nombre as servicio_nombre FROM pedido_items pi LEFT JOIN servicios s ON pi.servicio_id = s.id WHERE pi.pedido_id = $1',
+        [p.id]
+      )
+      return { ...p, items: items.rows }
+    }))
+    res.json(pedidos)
   } catch (error) {
     res.status(500).json({ error: 'Error al obtener pedidos' })
   }
