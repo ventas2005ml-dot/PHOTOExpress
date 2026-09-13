@@ -18,11 +18,16 @@ const registro = async (req, res) => {
     const passwordHash = await bcrypt.hash(password, 10)
 
     const result = await db.query(
-      'INSERT INTO usuarios (nombre, email, password, rol) VALUES ($1, $2, $3, $4) RETURNING id, nombre, email, rol',
-      [nombre, email, passwordHash, rol]
+      'INSERT INTO usuarios (nombre, email, password, rol, activo) VALUES ($1, $2, $3, $4, $5) RETURNING id, nombre, email, rol, activo',
+      [nombre, email, passwordHash, rol, rol !== 'cliente']
     )
 
     const usuario = result.rows[0]
+
+    if (rol === 'cliente') {
+      return res.status(201).json({ mensaje: 'Registro exitoso. Tu cuenta será activada por el administrador.' })
+    }
+
     const token = jwt.sign(
       { id: usuario.id, rol: usuario.rol },
       process.env.JWT_SECRET,

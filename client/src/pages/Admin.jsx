@@ -522,22 +522,40 @@ export default function Admin({ usuario, onLogout }) {
                     <th className="text-left text-xs font-medium text-gray-500 px-4 py-3">Rol</th>
                     <th className="text-left text-xs font-medium text-gray-500 px-4 py-3">Estado</th>
                     <th className="text-left text-xs font-medium text-gray-500 px-4 py-3">Creado</th>
+                    <th className="text-left text-xs font-medium text-gray-500 px-4 py-3">Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
                   {usuarios.length === 0 ? (
-                    <tr><td colSpan="5" className="text-center py-6 text-gray-400 text-sm">No hay usuarios</td></tr>
+                    <tr><td colSpan="6" className="text-center py-6 text-gray-400 text-sm">No hay usuarios</td></tr>
                   ) : usuarios.map(u => (
                     <tr key={u.id} className="border-b border-gray-50 hover:bg-gray-50">
                       <td className="px-4 py-3 text-sm text-gray-800">{u.nombre}</td>
                       <td className="px-4 py-3 text-sm text-gray-500">{u.email}</td>
                       <td className="px-4 py-3 text-sm capitalize text-gray-600">{u.rol}</td>
                       <td className="px-4 py-3">
-                        <span className={'text-xs px-2 py-1 rounded-full font-medium ' + (u.activo ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500')}>
-                          {u.activo ? 'Activo' : 'Inactivo'}
+                        <span className={'text-xs px-2 py-1 rounded-full font-medium ' + (u.activo ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700')}>
+                          {u.activo ? 'Activo' : 'Pendiente'}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-400">{new Date(u.creado_en).toLocaleDateString()}</td>
+                      <td className="px-4 py-3 text-sm">
+                        <div className="flex gap-2">
+                          <button onClick={async () => {
+                            await fetch(`/api/usuarios/${u.id}/estado`, { method: 'PUT', headers, body: JSON.stringify({ activo: !u.activo }) })
+                            fetch('/api/usuarios', { headers }).then(r => r.json()).then(setUsuarios)
+                          }} className={'text-xs px-2 py-1 rounded ' + (u.activo ? 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200' : 'bg-green-100 text-green-700 hover:bg-green-200')}>
+                            {u.activo ? 'Suspender' : 'Aprobar'}
+                          </button>
+                          <button onClick={async () => {
+                            if (!confirm('¿Eliminar usuario ' + u.nombre + '?')) return
+                            await fetch(`/api/usuarios/${u.id}`, { method: 'DELETE', headers })
+                            fetch('/api/usuarios', { headers }).then(r => r.json()).then(setUsuarios)
+                          }} className="text-xs px-2 py-1 rounded bg-red-100 text-red-600 hover:bg-red-200">
+                            Eliminar
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-export default function Login({ onLogin }) {
+export default function Login({ onLogin, onRegistro }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -74,6 +74,12 @@ export default function Login({ onLogin }) {
           >
             {cargando ? 'Ingresando...' : 'Ingresar'}
           </button>
+          {onRegistro && (
+            <button type="button" onClick={onRegistro}
+              className="w-full text-sm text-gray-400 hover:text-gray-600 py-1">
+              ¿No tenés cuenta? Registrate
+            </button>
+          )}
         </form>
       </div>
     </div>

@@ -30,4 +30,29 @@ const crearEmpleado = async (req, res) => {
   }
 }
 
-module.exports = { getUsuarios, crearEmpleado }
+const actualizarEstadoUsuario = async (req, res) => {
+  try {
+    const { id } = req.params
+    const { activo } = req.body
+    const result = await db.query(
+      'UPDATE usuarios SET activo = $1 WHERE id = $2 RETURNING id, nombre, email, rol, activo',
+      [activo, id]
+    )
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Usuario no encontrado' })
+    res.json(result.rows[0])
+  } catch (error) {
+    res.status(500).json({ error: 'Error al actualizar usuario' })
+  }
+}
+
+const eliminarUsuario = async (req, res) => {
+  try {
+    const { id } = req.params
+    await db.query('DELETE FROM usuarios WHERE id = $1', [id])
+    res.json({ mensaje: 'Usuario eliminado' })
+  } catch (error) {
+    res.status(500).json({ error: 'Error al eliminar usuario' })
+  }
+}
+
+module.exports = { getUsuarios, crearEmpleado, actualizarEstadoUsuario, eliminarUsuario }
