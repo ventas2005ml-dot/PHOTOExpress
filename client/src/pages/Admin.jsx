@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 
-const TABS = ['estadisticas', 'reportes', 'catalogo', 'promos', 'pedidos', 'usuarios', 'configuracion']
+const TABS = ['estadisticas', 'reportes', 'catalogo', 'promos', 'pedidos', 'clientes', 'usuarios', 'configuracion']
 
 export default function Admin({ usuario, onLogout }) {
   const [stats, setStats] = useState(null)
@@ -23,6 +23,8 @@ export default function Admin({ usuario, onLogout }) {
   const [subiendoComprobante, setSubiendoComprobante] = useState(null)
   const [pedidoDetalle, setPedidoDetalle] = useState(null)
   const [cargandoDetalle, setCargandoDetalle] = useState(false)
+  const [clientesActivos, setClientesActivos] = useState([])
+  const [clienteSeleccionado, setClienteSeleccionado] = useState(null)
   const [reporte, setReporte] = useState(null)
   const [fechaDesde, setFechaDesde] = useState(new Date(new Date().setDate(1)).toISOString().split('T')[0])
   const [fechaHasta, setFechaHasta] = useState(new Date().toISOString().split('T')[0])
@@ -38,6 +40,16 @@ export default function Admin({ usuario, onLogout }) {
     fetch('/api/catalogo/categorias', { headers }).then(r => r.json()).then(setCategorias)
     fetch('/api/pagos/promos', { headers }).then(r => r.json()).then(setPromos)
     fetch('/api/usuarios', { headers }).then(r => r.json()).then(setUsuarios)
+    fetch('/api/pedidos', { headers }).then(r => r.json()).then(data => {
+      if (!Array.isArray(data)) return
+      const map = {}
+      data.filter(p => ['ingresado','facturado','cobrado','en_proceso'].includes(p.estado)).forEach(p => {
+        const key = p.usuario_id
+        if (!map[key]) map[key] = { id: key, nombre: p.cliente_nombre, email: p.cliente_email, pedidos: [] }
+        map[key].pedidos.push(p)
+      })
+      setClientesActivos(Object.values(map))
+    })
   }, [])
 
   const guardarConfig = async () => {
@@ -506,6 +518,41 @@ export default function Admin({ usuario, onLogout }) {
             {pedidos.length === 0 && !cargandoPedidos && (
               <p className="text-center text-gray-400 text-sm py-8">Hacé una búsqueda para ver pedidos</p>
             )}
+          </div>
+        )}
+
+        {tab === 'clientes' && (
+          <div className="space-y-3">
+            {clientesActivos.length === 0 && (
+              <p className="text-center text-gray-400 text-sm py-8">No hay clientes con pedidos activos</p>
+            )}
+            {clientesActivos.map(c => (
+              <div key={c.id} className="bg-white rounded-xl border border-gray-200 p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-800">{c.nombre || '—'}</p>
+                    <p className="text-xs text-gray-400">{c.email}</p>
+                  </div>
+                  <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
+                    {c.pedidos.length} pedido{c.pedidos.length !== 1 ? 's' : ''}
+                  </span>
+                </div>
+                <div className="space-y-2">
+                  {c.pedidos.map(p => (
+                    <div key={p.id} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2 cursor-pointer hover:bg-gray-100"
+                      onClick={() => verDetallePedido(p.id)}>
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs font-medium text-blue-600">{p.codigo}</span>
+                        <span className={['text-xs px-2 py-0.5 rounded-full font-medium', BADGE_ESTADO[p.estado] || 'bg-gray-100 text-gray-500'].join(' ')}>
+                          {p.estado?.replace('_', ' ')}
+                        </span>
+                      </div>
+                      <span className="text-xs font-medium text-gray-700">${parseFloat(p.total || 0).toLocaleString()}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
         )}
 
