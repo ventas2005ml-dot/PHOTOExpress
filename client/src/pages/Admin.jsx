@@ -160,9 +160,14 @@ export default function Admin({ usuario, onLogout }) {
         <div className="flex gap-2 mb-6 flex-wrap">
           {TABS.map(t => (
             <button key={t} onClick={() => setTab(t)}
-              className={'px-4 py-2 rounded-lg text-sm font-medium border transition-colors ' +
+              className={'px-4 py-2 rounded-lg text-sm font-medium border transition-colors relative ' +
                 (tab === t ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300')}>
               {t.charAt(0).toUpperCase() + t.slice(1)}
+              {t === 'usuarios' && usuarios.filter(u => !u.activo && u.rol === 'cliente').length > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center font-bold">
+                  {usuarios.filter(u => !u.activo && u.rol === 'cliente').length}
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -544,7 +549,7 @@ export default function Admin({ usuario, onLogout }) {
                 <tbody>
                   {usuarios.length === 0 ? (
                     <tr><td colSpan="6" className="text-center py-6 text-gray-400 text-sm">No hay usuarios</td></tr>
-                  ) : usuarios.map(u => (
+                  ) : [...usuarios].sort((a, b) => (a.activo === b.activo ? 0 : a.activo ? 1 : -1)).map(u => (
                     <tr key={u.id} className="border-b border-gray-50 hover:bg-gray-50">
                       <td className="px-4 py-3 text-sm text-gray-800">{u.nombre}</td>
                       <td className="px-4 py-3 text-sm text-gray-500">{u.email}</td>
