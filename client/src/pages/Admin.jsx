@@ -125,15 +125,15 @@ export default function Admin({ usuario, onLogout }) {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="bg-green-700 border-b border-green-800 px-6 py-3 flex items-center justify-between">
+      <div className="bg-gray-900 border-b border-gray-800 px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <span className="text-xl">📷</span>
           <span className="font-semibold text-white">PHOTOExpress</span>
-          <span className="text-sm text-green-200">Panel Admin</span>
+          <span className="text-sm text-gray-400">Panel Admin</span>
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-sm text-green-100">{usuario.nombre}</span>
-          <button onClick={onLogout} className="text-sm text-green-300 hover:text-white">Salir</button>
+          <span className="text-sm text-gray-300">{usuario.nombre}</span>
+          <button onClick={onLogout} className="text-sm text-gray-400 hover:text-white">Salir</button>
         </div>
       </div>
 
