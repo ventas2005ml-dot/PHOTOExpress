@@ -109,8 +109,9 @@ const actualizarEstado = async (req, res) => {
     if (!estados.includes(estado)) {
       return res.status(400).json({ error: 'Estado invalido' })
     }
+    const extra = estado === 'finalizado' ? ', finalizado_en = NOW()' : ''
     const result = await db.query(
-      'UPDATE pedidos SET estado = $1, actualizado_en = NOW() WHERE id = $2 RETURNING *',
+      `UPDATE pedidos SET estado = $1, actualizado_en = NOW()${extra} WHERE id = $2 RETURNING *`,
       [estado, id]
     )
     if (result.rows.length === 0) {
