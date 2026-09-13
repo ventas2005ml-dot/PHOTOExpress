@@ -17,45 +17,50 @@ export default function PanelCliente({ usuario, onLogout }) {
   const [perfilMsg, setPerfilMsg] = useState('')
   const [perfilErr, setPerfilErr] = useState('') // dashboard | nuevo
   const [pedidos, setPedidos] = useState([])
-  const [categorias, setCategorias] = useState([])
   const [servicios, setServicios] = useState([])
 
-  // Wizard
+  // Wizard nuevo
   const [paso, setPaso] = useState(1)
-  const [categoriaId, setCategoriaId] = useState('')
-  const [servicioId, setServicioId] = useState('')
-  const [cantidad, setCantidad] = useState(1)
+  const [tipoPapel, setTipoPapel] = useState('')   // MATE | MATE_BORDE_BLANCO | BRILLO | BRILLO_BORDE_BLANCO
+  const [tamaniosSeleccionados, setTamaniosSeleccionados] = useState({}) // { servicioId: cantidad }
   const [archivos, setArchivos] = useState([])
+  const [cantidadPorFoto, setCantidadPorFoto] = useState({}) // { filename: { servicioId: cantidad } }
   const [notas, setNotas] = useState('')
   const [enviando, setEnviando] = useState(false)
   const [mensaje, setMensaje] = useState('')
 
-  const token = localStorage.getItem('token')
-  const headers = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }
+  const TIPOS_PAPEL = ['MATE', 'MATE BORDE BLANCO', 'BRILLO', 'BRILLO BORDE BLANCO']
 
-  useEffect(() => {
-    const hace3meses = new Date()
-    hace3meses.setMonth(hace3meses.getMonth() - 3)
-    fetch(`/api/pedidos?usuario_id=${usuario.id}`, { headers }).then(r => r.json()).then(data => {
-      if (Array.isArray(data)) setPedidos(data)
+  const toggleTamanio = (servicioId) => {
+    setTamaniosSeleccionados(prev => {
+      const next = { ...prev }
+      if (next[servicioId]) delete next[servicioId]
+      else next[servicioId] = 1
+      return next
     })
-    fetch('/api/catalogo/categorias', { headers }).then(r => r.json()).then(setCategorias)
-  }, [])
+  }
 
-  useEffect(() => {
-    if (!categoriaId) { setServicios([]); return }
-    fetch('/api/catalogo/servicios', { headers }).then(r => r.json()).then(data => {
-      setServicios(data.filter(s => s.categoria_id == categoriaId))
-    })
-  }, [categoriaId])
+  const tamaniosIds = Object.keys(tamaniosSeleccionados).map(Number)
 
-  const servicioSeleccionado = servicios.find(s => s.id == servicioId)
+  const totalPedido = () => {
+    return tamaniosIds.reduce((acc, sid) => {
+      const s = servicios.find(x => x.id === sid)
+      if (!s) return acc
+      const copiasPorFoto = archivos.reduce((sum, f) => {
+        return sum + (cantidadPorFoto[f.name]?.[sid] || 1)
+      }, 0)
+      return acc + parseFloat(s.precio) * copiasPorFoto
+    }, 0)
+  }
 
   const enviarPedido = async () => {
-    if (!servicioId) { setMensaje('Seleccioná un servicio'); return }
+    if (!tipoPapel) { setMensaje('Seleccioná el tipo de papel'); return }
+    if (tamaniosIds.length === 0) { setMensaje('Seleccioná al menos un tamaño'); return }
+    if (archivos.length === 0) { setMensaje('Subí al menos una foto'); return }
     setEnviando(true)
     setMensaje('')
 
+    // Subir archivos
     let archivosUrls = []
     for (const archivo of archivos) {
       const formData = new FormData()
@@ -64,24 +69,45 @@ export default function PanelCliente({ usuario, onLogout }) {
         method: 'POST', headers: { Authorization: 'Bearer ' + token }, body: formData
       })
       const data = await res.json()
-      if (data.url) archivosUrls.push({ nombre: archivo.name, url: data.url })
+      if (data.url) archivosUrls.push(data.url)
     }
+
+    // Armar items por tamaño
+    const items = tamaniosIds.map(sid => {
+      const totalCopias = archivos.reduce((sum, f) => sum + (cantidadPorFoto[f.name]?.[sid] || 1), 0)
+      return { servicio_id: sid, cantidad: totalCopias }
+    })
+
+    const notasCompletas = `Papel: ${tipoPapel}\n${notas}`.trim()
 
     const res = await fetch('/api/pedidos', {
       method: 'POST', headers,
-      body: JSON.stringify({
-        usuario_id: usuario.id,
-        notas: notas + (archivosUrls.length ? '\nArchivos: ' + archivosUrls.map(a => a.nombre).join(', ') : ''),
-        items: [{ servicio_id: servicioId, cantidad }]
-      })
+      body: JSON.stringify({ usuario_id: usuario.id, notas: notasCompletas, archivos_urls: archivosUrls, items })
     })
     const data = await res.json()
     setEnviando(false)
     if (!res.ok) { setMensaje('Error al crear pedido'); return }
     setPedidos(prev => [data, ...prev])
     setVista('dashboard')
-    setPaso(1); setCategoriaId(''); setServicioId(''); setCantidad(1); setArchivos([]); setNotas('')
+    resetWizard()
   }
+
+  const resetWizard = () => {
+    setPaso(1); setTipoPapel(''); setTamaniosSeleccionados({})
+    setArchivos([]); setCantidadPorFoto({}); setNotas(''); setMensaje('')
+  }
+
+  const token = localStorage.getItem('token')
+  const headers = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }
+
+  useEffect(() => {
+    fetch(`/api/pedidos?usuario_id=${usuario.id}`, { headers }).then(r => r.json()).then(data => {
+      if (Array.isArray(data)) setPedidos(data)
+    })
+    fetch('/api/catalogo/servicios', { headers }).then(r => r.json()).then(data => {
+      if (Array.isArray(data)) setServicios(data)
+    })
+  }, [])
 
   const guardarPerfil = async () => {
     if (!perfilForm.nombre || !perfilForm.apellido) { setPerfilErr('Completá nombre y apellido'); return }
@@ -101,8 +127,6 @@ export default function PanelCliente({ usuario, onLogout }) {
     if (res.ok) { setPerfilMsg('Contraseña actualizada ✓'); setPassForm({ actual: '', nueva: '', confirmar: '' }); setTimeout(() => setPerfilMsg(''), 3000) }
     else setPerfilErr(data.error || 'Error al cambiar contraseña')
   }
-
-  const resetWizard = () => { setPaso(1); setCategoriaId(''); setServicioId(''); setCantidad(1); setArchivos([]); setNotas(''); setMensaje('') }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -161,14 +185,10 @@ export default function PanelCliente({ usuario, onLogout }) {
         )}
 
         {vista === 'nuevo' && (
-          <div>
-            <div className="flex items-center gap-2 mb-6">
-              <button onClick={() => { resetWizard(); setVista('dashboard') }} className="text-sm text-gray-400 hover:text-gray-600">← Volver</button>
-            </div>
-
+          <div className="max-w-4xl">
             {/* Indicador de pasos */}
             <div className="flex gap-2 mb-6">
-              {['Servicio', 'Archivos y notas', 'Confirmar'].map((label, i) => (
+              {['Papel / medidas', 'Archivos y copias', 'Resumen final'].map((label, i) => (
                 <div key={i} className={'flex-1 py-2 px-3 rounded-lg text-xs font-medium text-center ' +
                   (paso === i + 1 ? 'bg-blue-600 text-white' : paso > i + 1 ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-400')}>
                   {i + 1}. {label}
@@ -178,115 +198,154 @@ export default function PanelCliente({ usuario, onLogout }) {
 
             {mensaje && <p className="text-red-500 text-sm mb-4 bg-red-50 px-3 py-2 rounded-lg">{mensaje}</p>}
 
+            {/* PASO 1 — Papel y medidas */}
             {paso === 1 && (
-              <div className="bg-white rounded-xl border border-gray-200 p-5">
-                <h3 className="text-sm font-medium text-gray-700 mb-4">¿Qué tipo de producto querés?</h3>
-                <div className="mb-4">
-                  <label className="text-xs text-gray-500 block mb-1">Categoría</label>
-                  <select value={categoriaId} onChange={e => { setCategoriaId(e.target.value); setServicioId('') }}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    <option value="">Seleccioná una categoría...</option>
-                    {categorias.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-                  </select>
-                </div>
-                {categoriaId && (
-                  <div className="mb-4">
-                    <label className="text-xs text-gray-500 block mb-1">Tamaño / Producto</label>
-                    <div className="space-y-2 max-h-48 overflow-y-auto">
-                      {servicios.map(s => (
-                        <label key={s.id} className={'flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-colors ' +
-                          (servicioId == s.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300')}>
-                          <div className="flex items-center gap-2">
-                            <input type="radio" name="servicio" value={s.id} checked={servicioId == s.id}
-                              onChange={() => setServicioId(s.id)} className="text-blue-600"/>
-                            <span className="text-sm text-gray-700">{s.nombre}</span>
-                          </div>
-                          <span className="text-sm font-medium text-gray-800">${parseFloat(s.precio).toLocaleString()}</span>
+              <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                <div className="grid grid-cols-2 divide-x divide-gray-100">
+                  {/* Columna izquierda: tipo de papel */}
+                  <div className="p-5">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Tipo de papel</p>
+                    <div className="space-y-2">
+                      {TIPOS_PAPEL.map(tipo => (
+                        <label key={tipo} className={'flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ' +
+                          (tipoPapel === tipo ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300')}>
+                          <input type="radio" name="papel" checked={tipoPapel === tipo} onChange={() => setTipoPapel(tipo)} className="text-blue-600"/>
+                          <span className="text-sm text-gray-700">{tipo}</span>
                         </label>
                       ))}
                     </div>
                   </div>
-                )}
-                {servicioId && (
-                  <div className="mb-4">
-                    <label className="text-xs text-gray-500 block mb-1">Cantidad de copias</label>
-                    <input type="number" min="1" value={cantidad} onChange={e => setCantidad(parseInt(e.target.value) || 1)}
-                      className="w-32 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+                  {/* Columna derecha: medidas */}
+                  <div className="p-5">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Medidas</p>
+                    {!tipoPapel ? (
+                      <p className="text-sm text-gray-300">Seleccioná un tipo de papel</p>
+                    ) : (
+                      <div className="space-y-1.5 max-h-80 overflow-y-auto">
+                        {servicios.filter(s => s.categoria_id && s.nombre.match(/^\d/)).map(s => (
+                          <label key={s.id} className={'flex items-center justify-between p-2.5 rounded-lg border cursor-pointer transition-colors ' +
+                            (tamaniosSeleccionados[s.id] !== undefined ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300')}>
+                            <div className="flex items-center gap-2">
+                              <input type="checkbox" checked={tamaniosSeleccionados[s.id] !== undefined}
+                                onChange={() => toggleTamanio(s.id)} className="text-blue-600 rounded"/>
+                              <span className="text-sm text-gray-700">{s.nombre}</span>
+                            </div>
+                            <span className="text-xs font-medium text-gray-500">${parseFloat(s.precio).toLocaleString()}</span>
+                          </label>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                )}
-                <button onClick={() => { if (!servicioId) { setMensaje('Seleccioná un servicio'); return } setMensaje(''); setPaso(2) }}
-                  className="bg-blue-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-blue-700">
-                  Siguiente →
-                </button>
-              </div>
-            )}
-
-            {paso === 2 && (
-              <div className="bg-white rounded-xl border border-gray-200 p-5">
-                <h3 className="text-sm font-medium text-gray-700 mb-4">Subí tus archivos</h3>
-                <div className="mb-4">
-                  <label className="text-xs text-gray-500 block mb-2">Fotos a imprimir</label>
-                  <div className="border-2 border-dashed border-gray-200 rounded-lg p-6 text-center cursor-pointer hover:border-blue-400 transition-colors"
-                    onClick={() => document.getElementById('file-input').click()}>
-                    <p className="text-sm text-gray-400">Arrastrá archivos acá o hacé clic para seleccionar</p>
-                    <p className="text-xs text-gray-300 mt-1">JPG, PNG — máx. 10MB por archivo</p>
-                    <input id="file-input" type="file" multiple accept="image/*" className="hidden"
-                      onChange={e => setArchivos(Array.from(e.target.files))}/>
-                  </div>
-                  {archivos.length > 0 && (
-                    <div className="mt-3 space-y-1">
-                      {archivos.map((f, i) => (
-                        <div key={i} className="flex items-center justify-between text-xs text-gray-600 bg-gray-50 px-3 py-2 rounded">
-                          <span>{f.name}</span>
-                          <span>{(f.size / 1024 / 1024).toFixed(1)} MB</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
                 </div>
-                <div className="mb-4">
-                  <label className="text-xs text-gray-500 block mb-1">Observaciones</label>
-                  <textarea value={notas} onChange={e => setNotas(e.target.value)} rows={3}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Indicaciones especiales, retoque de colores, etc."/>
-                </div>
-                <div className="flex gap-3">
-                  <button onClick={() => setPaso(1)} className="text-sm text-gray-400 hover:text-gray-600 px-4 py-2">← Atrás</button>
-                  <button onClick={() => setPaso(3)} className="bg-blue-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-blue-700">
+                <div className="flex justify-between px-5 py-3 border-t border-gray-100 bg-gray-50">
+                  <button onClick={() => { resetWizard(); setVista('dashboard') }} className="text-sm text-gray-400 hover:text-gray-600">← Cancelar</button>
+                  <button onClick={() => {
+                    if (!tipoPapel) { setMensaje('Seleccioná el tipo de papel'); return }
+                    if (tamaniosIds.length === 0) { setMensaje('Seleccioná al menos un tamaño'); return }
+                    setMensaje(''); setPaso(2)
+                  }} className="bg-blue-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-blue-700">
                     Siguiente →
                   </button>
                 </div>
               </div>
             )}
 
-            {paso === 3 && servicioSeleccionado && (
-              <div className="bg-white rounded-xl border border-gray-200 p-5">
-                <h3 className="text-sm font-medium text-gray-700 mb-4">Resumen del pedido</h3>
-                <div className="space-y-3 mb-5">
+            {/* PASO 2 — Archivos y copias */}
+            {paso === 2 && (
+              <div className="bg-white rounded-xl border border-gray-200">
+                <div className="p-5">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Observaciones</p>
+                  <textarea value={notas} onChange={e => setNotas(e.target.value)} rows={2}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4"
+                    placeholder="Indicaciones especiales, retoque de colores, etc."/>
+
+                  <div className="border-2 border-dashed border-gray-200 rounded-lg p-6 text-center cursor-pointer hover:border-blue-400 transition-colors mb-4"
+                    onClick={() => document.getElementById('file-input').click()}
+                    onDragOver={e => e.preventDefault()}
+                    onDrop={e => { e.preventDefault(); setArchivos(prev => [...prev, ...Array.from(e.dataTransfer.files)]) }}>
+                    <p className="text-sm text-gray-400">Arrastrá carpetas o archivos acá</p>
+                    <p className="text-xs text-gray-300 mt-1">JPG, PNG — máx. 10MB por archivo</p>
+                    <input id="file-input" type="file" multiple accept="image/*" className="hidden"
+                      onChange={e => setArchivos(prev => [...prev, ...Array.from(e.target.files)])}/>
+                  </div>
+                  <button onClick={() => document.getElementById('file-input').click()}
+                    className="text-sm border border-gray-200 px-4 py-2 rounded-lg text-gray-600 hover:bg-gray-50 mb-4">
+                    Elegir archivos
+                  </button>
+
+                  {archivos.length > 0 && (
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Nombre</p>
+                        {tamaniosIds.map(sid => {
+                          const s = servicios.find(x => x.id === sid)
+                          return <p key={sid} className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{s?.nombre}</p>
+                        })}
+                      </div>
+                      <div className="space-y-2">
+                        {archivos.map((f, i) => (
+                          <div key={i} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
+                            <span className="text-sm text-gray-700 truncate max-w-xs">{f.name}</span>
+                            <div className="flex gap-3">
+                              {tamaniosIds.map(sid => (
+                                <select key={sid} value={cantidadPorFoto[f.name]?.[sid] || 1}
+                                  onChange={e => setCantidadPorFoto(prev => ({
+                                    ...prev,
+                                    [f.name]: { ...prev[f.name], [sid]: parseInt(e.target.value) }
+                                  }))}
+                                  className="border border-gray-200 rounded px-2 py-1 text-sm w-16 text-center">
+                                  {[1,2,3,4,5,6,7,8,9,10].map(n => <option key={n} value={n}>{n}</option>)}
+                                </select>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div className="flex justify-between px-5 py-3 border-t border-gray-100 bg-gray-50">
+                  <button onClick={() => setPaso(1)} className="text-sm text-gray-400 hover:text-gray-600">← Atrás</button>
+                  <button onClick={() => {
+                    if (archivos.length === 0) { setMensaje('Subí al menos una foto'); return }
+                    setMensaje(''); setPaso(3)
+                  }} className="bg-blue-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-blue-700">
+                    Siguiente →
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* PASO 3 — Resumen */}
+            {paso === 3 && (
+              <div className="bg-white rounded-xl border border-gray-200">
+                <div className="p-5 space-y-4">
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-500">Producto</span>
-                    <span className="text-gray-800 font-medium">{servicioSeleccionado.nombre}</span>
+                    <span className="text-gray-500">Tipo de papel</span>
+                    <span className="font-medium text-gray-800">{tipoPapel}</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-500">Cantidad</span>
-                    <span className="text-gray-800">{cantidad} copia{cantidad > 1 ? 's' : ''}</span>
+                    <span className="text-gray-500">Tamaños</span>
+                    <span className="font-medium text-gray-800">
+                      {tamaniosIds.map(sid => servicios.find(x => x.id === sid)?.nombre).join(', ')}
+                    </span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-500">Archivos</span>
-                    <span className="text-gray-800">{archivos.length} archivo{archivos.length !== 1 ? 's' : ''}</span>
+                    <span className="font-medium text-gray-800">{archivos.length} foto{archivos.length !== 1 ? 's' : ''}</span>
                   </div>
                   {notas && <div className="flex justify-between text-sm">
-                    <span className="text-gray-500">Notas</span>
+                    <span className="text-gray-500">Observaciones</span>
                     <span className="text-gray-800 text-right max-w-xs">{notas}</span>
                   </div>}
                   <div className="border-t border-gray-100 pt-3 flex justify-between text-sm font-semibold">
-                    <span className="text-gray-700">Total</span>
-                    <span className="text-gray-800">${(parseFloat(servicioSeleccionado.precio) * cantidad).toLocaleString()}</span>
+                    <span className="text-gray-700">Total estimado</span>
+                    <span className="text-gray-800">${totalPedido().toLocaleString()}</span>
                   </div>
                 </div>
-                <p className="text-xs text-gray-400 mb-4">El tiempo de confección es de 48 a 72 horas. Te avisamos cuando esté listo.</p>
-                <div className="flex gap-3">
-                  <button onClick={() => setPaso(2)} className="text-sm text-gray-400 hover:text-gray-600 px-4 py-2">← Atrás</button>
+                <p className="text-xs text-gray-400 px-5 pb-4">El tiempo de confección es de 48 a 72 horas hábiles. Te avisamos cuando esté listo.</p>
+                <div className="flex justify-between px-5 py-3 border-t border-gray-100 bg-gray-50">
+                  <button onClick={() => setPaso(2)} className="text-sm text-gray-400 hover:text-gray-600">← Atrás</button>
                   <button onClick={enviarPedido} disabled={enviando}
                     className="bg-blue-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
                     {enviando ? 'Enviando...' : 'Confirmar pedido'}
