@@ -21,6 +21,8 @@ export default function Admin({ usuario, onLogout }) {
   const [filtroPedido, setFiltroPedido] = useState('')
   const [cargandoPedidos, setCargandoPedidos] = useState(false)
   const [subiendoComprobante, setSubiendoComprobante] = useState(null)
+  const [pedidoDetalle, setPedidoDetalle] = useState(null)
+  const [cargandoDetalle, setCargandoDetalle] = useState(false)
   const [reporte, setReporte] = useState(null)
   const [fechaDesde, setFechaDesde] = useState(new Date(new Date().setDate(1)).toISOString().split('T')[0])
   const [fechaHasta, setFechaHasta] = useState(new Date().toISOString().split('T')[0])
@@ -79,6 +81,15 @@ export default function Admin({ usuario, onLogout }) {
     setSubiendoComprobante(null)
     setMensaje('Comprobante subido ✓')
     setTimeout(() => setMensaje(''), 3000)
+  }
+
+  const verDetallePedido = async (id) => {
+    setCargandoDetalle(true)
+    setPedidoDetalle(null)
+    const res = await fetch(`/api/pedidos/${id}`, { headers })
+    const data = await res.json()
+    setPedidoDetalle(data)
+    setCargandoDetalle(false)
   }
 
   const buscarPedidos = async () => {
@@ -460,7 +471,7 @@ export default function Admin({ usuario, onLogout }) {
                       })
                       .map(p => (
                         <tr key={p.id} className="border-b border-gray-50 hover:bg-gray-50">
-                          <td className="px-4 py-3 text-sm font-medium text-blue-600">{p.codigo}</td>
+                          <td className="px-4 py-3 text-sm font-medium text-blue-600 cursor-pointer hover:underline" onClick={() => verDetallePedido(p.id)}>{p.codigo}</td>
                           <td className="px-4 py-3 text-sm text-gray-700">{p.cliente_nombre || p.cliente_email || '—'}</td>
                           <td className="px-4 py-3">
                             <span className={['text-xs px-2 py-1 rounded-full font-medium', BADGE_ESTADO[p.estado] || 'bg-gray-100 text-gray-500'].join(' ')}>
@@ -597,6 +608,78 @@ export default function Admin({ usuario, onLogout }) {
           </div>
         )}
       </div>
+      {/* Drawer detalle de pedido */}
+      {(pedidoDetalle || cargandoDetalle) && (
+        <div className="fixed inset-0 z-50 flex">
+          <div className="flex-1 bg-black/40" onClick={() => setPedidoDetalle(null)}/>
+          <div className="w-full max-w-md bg-white h-full shadow-xl overflow-y-auto">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <h3 className="text-sm font-semibold text-gray-800">
+                {cargandoDetalle ? 'Cargando...' : pedidoDetalle?.codigo}
+              </h3>
+              <button onClick={() => setPedidoDetalle(null)} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
+            </div>
+            {cargandoDetalle && <div className="p-5 text-sm text-gray-400">Cargando detalle...</div>}
+            {pedidoDetalle && (
+              <div className="p-5 space-y-5">
+                <div>
+                  <p className="text-xs text-gray-500 mb-1">Cliente</p>
+                  <p className="text-sm font-medium text-gray-800">{pedidoDetalle.cliente_nombre || '—'}</p>
+                  <p className="text-sm text-gray-500">{pedidoDetalle.cliente_email || '—'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 mb-1">Estado</p>
+                  <span className={['text-xs px-2 py-1 rounded-full font-medium', BADGE_ESTADO[pedidoDetalle.estado] || 'bg-gray-100 text-gray-500'].join(' ')}>
+                    {pedidoDetalle.estado?.replace('_', ' ')}
+                  </span>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 mb-2">Fecha</p>
+                  <p className="text-sm text-gray-700">{new Date(pedidoDetalle.creado_en).toLocaleString()}</p>
+                </div>
+                {pedidoDetalle.notas && (
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">Notas</p>
+                    <p className="text-sm text-gray-700 bg-gray-50 rounded-lg p-3">{pedidoDetalle.notas}</p>
+                  </div>
+                )}
+                {pedidoDetalle.items?.length > 0 && (
+                  <div>
+                    <p className="text-xs text-gray-500 mb-2">Items</p>
+                    <div className="space-y-2">
+                      {pedidoDetalle.items.map(item => (
+                        <div key={item.id} className="flex justify-between text-sm bg-gray-50 rounded-lg px-3 py-2">
+                          <span className="text-gray-700">{item.servicio_nombre} × {item.cantidad}</span>
+                          <span className="font-medium text-gray-800">${parseFloat(item.subtotal).toLocaleString()}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex justify-between text-sm font-semibold mt-2 pt-2 border-t border-gray-100">
+                      <span className="text-gray-700">Total</span>
+                      <span className="text-gray-800">${parseFloat(pedidoDetalle.total || 0).toLocaleString()}</span>
+                    </div>
+                  </div>
+                )}
+                <div>
+                  <p className="text-xs text-gray-500 mb-2">Cambiar estado</p>
+                  <select value={pedidoDetalle.estado} onChange={async e => {
+                    const nuevoEstado = e.target.value
+                    await fetch(`/api/pedidos/${pedidoDetalle.id}/estado`, { method: 'PUT', headers, body: JSON.stringify({ estado: nuevoEstado }) })
+                    setPedidoDetalle(prev => ({ ...prev, estado: nuevoEstado }))
+                    setPedidos(prev => prev.map(x => x.id === pedidoDetalle.id ? { ...x, estado: nuevoEstado } : x))
+                  }} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value="ingresado">Ingresado</option>
+                    <option value="facturado">Facturado</option>
+                    <option value="cobrado">Cobrado</option>
+                    <option value="en_proceso">En proceso</option>
+                    <option value="finalizado">Finalizado</option>
+                  </select>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
