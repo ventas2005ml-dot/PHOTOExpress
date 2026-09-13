@@ -106,23 +106,23 @@ export default function PanelCliente({ usuario, onLogout }) {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between">
+      <div className="bg-blue-600 border-b border-blue-700 px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <span className="text-xl">📷</span>
-          <span className="font-semibold text-gray-800">PHOTOExpress</span>
+          <span className="font-semibold text-white">PHOTOExpress</span>
         </div>
         <div className="flex items-center gap-4">
-          <span className="text-sm text-gray-600">{usuario.nombre}</span>
+          <span className="text-sm text-blue-100">{usuario.nombre}</span>
           <button onClick={() => { setModalPerfil(true); setPerfilMsg(''); setPerfilErr('') }}
-            className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 text-sm font-semibold flex items-center justify-center hover:bg-blue-200"
+            className="w-8 h-8 rounded-full bg-white text-blue-600 text-sm font-semibold flex items-center justify-center hover:bg-blue-50"
             title="Mi perfil">
             {usuario.nombre.charAt(0).toUpperCase()}
           </button>
           <button onClick={() => { resetWizard(); setVista('nuevo') }}
-            className="bg-blue-600 text-white px-4 py-1.5 rounded-lg text-sm font-medium hover:bg-blue-700">
+            className="bg-white text-blue-600 px-4 py-1.5 rounded-lg text-sm font-medium hover:bg-blue-50">
             + Nuevo pedido
           </button>
-          <button onClick={onLogout} className="text-sm text-gray-400 hover:text-gray-600">Salir</button>
+          <button onClick={onLogout} className="text-sm text-blue-200 hover:text-white">Salir</button>
         </div>
       </div>
 
