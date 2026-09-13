@@ -400,19 +400,19 @@ export default function PanelCliente({ usuario, onLogout }) {
                     </div>
                   )}
                 </div>
-                <div className="flex flex-col gap-2 items-end px-5 py-3 border-t border-gray-100 bg-gray-50">
+                <div className="flex justify-between items-center px-5 py-3 border-t border-gray-100 bg-gray-50">
+                  <button onClick={() => { resetOrden(); setPantalla(1) }}
+                    className="border border-gray-200 text-gray-600 px-5 py-2 rounded-lg text-sm font-medium hover:bg-gray-100">
+                    Cargar nueva orden
+                  </button>
                   <div className="flex gap-3">
                     <button onClick={() => { resetOrden(); setOrdenes([]); setVista('dashboard') }}
                       className="text-sm text-gray-400 hover:text-gray-600 px-4 py-2">Cancelar</button>
-                    <button onClick={() => { resetOrden(); setPantalla(1) }}
-                      className="border border-gray-200 text-gray-600 px-5 py-2 rounded-lg text-sm font-medium hover:bg-gray-100">
-                      Cargar nueva orden
+                    <button onClick={() => ordenes.length > 0 && setModalConfirmar(true)} disabled={ordenes.length === 0}
+                      className="bg-green-600 text-white px-6 py-2 rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-40">
+                      Enviar
                     </button>
                   </div>
-                  <button onClick={() => ordenes.length > 0 && setModalConfirmar(true)} disabled={ordenes.length === 0}
-                    className="bg-green-600 text-white px-6 py-2 rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-40">
-                    Enviar
-                  </button>
                 </div>
               </div>
             )}
