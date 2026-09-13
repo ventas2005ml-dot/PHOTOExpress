@@ -56,12 +56,12 @@ const getPedidoById = async (req, res) => {
 
 const crearPedido = async (req, res) => {
   try {
-    const { usuario_id, notas, items } = req.body
+    const { usuario_id, notas, items, tipo_papel, archivos_urls } = req.body
     const codigo = await generarCodigo()
 
     const pedidoResult = await db.query(
-      'INSERT INTO pedidos (codigo, usuario_id, notas, estado) VALUES ($1, $2, $3, $4) RETURNING *',
-      [codigo, usuario_id, notas, 'ingresado']
+      'INSERT INTO pedidos (codigo, usuario_id, notas, tipo_papel, archivos_urls, estado) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+      [codigo, usuario_id, notas, tipo_papel || null, archivos_urls || [], 'ingresado']
     )
     const pedido = pedidoResult.rows[0]
 

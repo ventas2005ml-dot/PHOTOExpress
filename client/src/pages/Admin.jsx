@@ -689,6 +689,12 @@ export default function Admin({ usuario, onLogout }) {
                   <p className="text-xs text-gray-500 mb-2">Fecha</p>
                   <p className="text-sm text-gray-700">{new Date(pedidoDetalle.creado_en).toLocaleString()}</p>
                 </div>
+                {pedidoDetalle.tipo_papel && (
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">Tipo de papel</p>
+                    <p className="text-sm font-medium text-gray-800">{pedidoDetalle.tipo_papel}</p>
+                  </div>
+                )}
                 {pedidoDetalle.notas && (
                   <div>
                     <p className="text-xs text-gray-500 mb-1">Notas</p>

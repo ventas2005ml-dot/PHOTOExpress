@@ -91,7 +91,7 @@ export default function PanelCliente({ usuario, onLogout }) {
 
     const res = await fetch('/api/pedidos', {
       method: 'POST', headers,
-      body: JSON.stringify({ usuario_id: usuario.id, notas: `Papel: ${tipoPapel}${notas ? '\n' + notas : ''}`, archivos_urls: archivosUrls, items })
+      body: JSON.stringify({ usuario_id: usuario.id, tipo_papel: tipoPapel, notas, archivos_urls: archivosUrls, items })
     })
     const data = await res.json()
     setEnviando(false)
