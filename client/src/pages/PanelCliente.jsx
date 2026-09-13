@@ -43,7 +43,7 @@ export default function PanelCliente({ usuario, onLogout }) {
   }, [])
 
   const tamaniosIds = Object.keys(tamaniosSeleccionados).map(Number)
-  const tamaniosFotos = servicios
+  const tamaniosFotos = servicios.filter(s => s.categoria_id === 5)
 
   const toggleTamanio = (servicioId) => {
     setTamaniosSeleccionados(prev => {
@@ -213,7 +213,7 @@ export default function PanelCliente({ usuario, onLogout }) {
                           (tamaniosSeleccionados[s.id] !== undefined ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300')}>
                           <input type="checkbox" checked={tamaniosSeleccionados[s.id] !== undefined}
                             onChange={() => toggleTamanio(s.id)} className="text-blue-600 rounded"/>
-                          <span className="text-sm text-gray-700">{s.nombre}</span>
+                          <span className="text-sm text-gray-700">{s.nombre.replace(/^Foto /, '')}</span>
                         </label>
                       ))}
                     </div>
