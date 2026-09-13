@@ -290,8 +290,8 @@ export default function PanelCliente({ usuario, onLogout }) {
                   <div className="flex gap-3">
                     <button onClick={() => { setMensaje(''); setPantalla(1) }} className="text-sm text-gray-400 hover:text-gray-600 px-4 py-2">Atras</button>
                     <button onClick={enviarPedido} disabled={enviando}
-                      className="bg-blue-600 text-white px-6 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
-                      {enviando ? 'Enviando...' : 'Confirmar pedido'}
+                      className="bg-green-600 text-white px-6 py-2 rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50">
+                      {enviando ? 'Enviando...' : 'Enviar pedido'}
                     </button>
                   </div>
                 </div>
