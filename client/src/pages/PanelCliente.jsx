@@ -207,7 +207,7 @@ export default function PanelCliente({ usuario, onLogout }) {
                   {!tipoPapel ? (
                     <p className="text-sm text-gray-300 italic">Seleccioná un tipo de papel</p>
                   ) : (
-                    <div className="grid grid-cols-2 gap-1.5 max-h-64 overflow-y-auto">
+                    <div className="space-y-1.5 max-h-64 overflow-y-auto">
                       {tamaniosFotos.map(s => (
                         <label key={s.id} className={'flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-colors ' +
                           (tamaniosSeleccionados[s.id] !== undefined ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300')}>
