@@ -61,7 +61,7 @@ const crearPedido = async (req, res) => {
 
     const pedidoResult = await db.query(
       'INSERT INTO pedidos (codigo, usuario_id, notas, estado) VALUES ($1, $2, $3, $4) RETURNING *',
-      [codigo, usuario_id, notas, 'pendiente']
+      [codigo, usuario_id, notas, 'ingresado']
     )
     const pedido = pedidoResult.rows[0]
 
@@ -105,7 +105,7 @@ const actualizarEstado = async (req, res) => {
   try {
     const { id } = req.params
     const { estado } = req.body
-    const estados = ['pendiente', 'en_proceso', 'listo', 'entregado', 'cancelado']
+    const estados = ['ingresado', 'facturado', 'cobrado', 'en_proceso', 'finalizado']
     if (!estados.includes(estado)) {
       return res.status(400).json({ error: 'Estado invalido' })
     }
@@ -119,7 +119,7 @@ const actualizarEstado = async (req, res) => {
     res.json(result.rows[0])
 
     // Mail cuando pasa a listo
-    if (estado === 'listo') {
+    if (estado === 'finalizado') {
       try {
         const pedidoData = await db.query(
           'SELECT p.codigo, u.nombre, u.email FROM pedidos p LEFT JOIN usuarios u ON p.usuario_id = u.id WHERE p.id = $1',

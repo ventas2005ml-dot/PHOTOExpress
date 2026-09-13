@@ -123,6 +123,14 @@ export default function Admin({ usuario, onLogout }) {
     pendiente: 'bg-yellow-100 text-yellow-700',
   }
 
+  const BADGE_ESTADO = {
+    ingresado: 'bg-gray-100 text-gray-600',
+    facturado: 'bg-yellow-100 text-yellow-700',
+    cobrado: 'bg-blue-100 text-blue-700',
+    en_proceso: 'bg-orange-100 text-orange-700',
+    finalizado: 'bg-green-100 text-green-700',
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="bg-gray-900 border-b border-gray-800 px-6 py-3 flex items-center justify-between">
@@ -455,13 +463,7 @@ export default function Admin({ usuario, onLogout }) {
                           <td className="px-4 py-3 text-sm font-medium text-blue-600">{p.codigo}</td>
                           <td className="px-4 py-3 text-sm text-gray-700">{p.cliente_nombre || p.cliente_email || '—'}</td>
                           <td className="px-4 py-3">
-                            <span className={['text-xs px-2 py-1 rounded-full font-medium', {
-                              pendiente: 'bg-yellow-100 text-yellow-700',
-                              en_proceso: 'bg-blue-100 text-blue-700',
-                              listo: 'bg-green-100 text-green-700',
-                              entregado: 'bg-gray-100 text-gray-600',
-                              cancelado: 'bg-red-100 text-red-600',
-                            }[p.estado] || 'bg-gray-100 text-gray-500'].join(' ')}>
+                            <span className={['text-xs px-2 py-1 rounded-full font-medium', BADGE_ESTADO[p.estado] || 'bg-gray-100 text-gray-500'].join(' ')}>
                               {p.estado?.replace('_', ' ')}
                             </span>
                           </td>
@@ -472,11 +474,11 @@ export default function Admin({ usuario, onLogout }) {
                               await fetch(`/api/pedidos/${p.id}/estado`, { method: 'PUT', headers, body: JSON.stringify({ estado: e.target.value }) })
                               setPedidos(prev => prev.map(x => x.id === p.id ? { ...x, estado: e.target.value } : x))
                             }} className="border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500">
-                              <option value="pendiente">Pendiente</option>
+                              <option value="ingresado">Ingresado</option>
+                              <option value="facturado">Facturado</option>
+                              <option value="cobrado">Cobrado</option>
                               <option value="en_proceso">En proceso</option>
-                              <option value="listo">Listo</option>
-                              <option value="entregado">Entregado</option>
-                              <option value="cancelado">Cancelado</option>
+                              <option value="finalizado">Finalizado</option>
                             </select>
                           </td>
                         </tr>
