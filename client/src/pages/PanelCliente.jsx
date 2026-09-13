@@ -9,7 +9,13 @@ const BADGE = {
 }
 
 export default function PanelCliente({ usuario, onLogout }) {
-  const [vista, setVista] = useState('dashboard') // dashboard | nuevo
+  const [vista, setVista] = useState('dashboard')
+  const [modalPerfil, setModalPerfil] = useState(false)
+  const [perfilTab, setPerfilTab] = useState('datos')
+  const [perfilForm, setPerfilForm] = useState({ nombre: usuario.nombre.split(' ')[0] || '', apellido: usuario.nombre.split(' ').slice(1).join(' ') || '' })
+  const [passForm, setPassForm] = useState({ actual: '', nueva: '', confirmar: '' })
+  const [perfilMsg, setPerfilMsg] = useState('')
+  const [perfilErr, setPerfilErr] = useState('') // dashboard | nuevo
   const [pedidos, setPedidos] = useState([])
   const [categorias, setCategorias] = useState([])
   const [servicios, setServicios] = useState([])
@@ -77,6 +83,25 @@ export default function PanelCliente({ usuario, onLogout }) {
     setPaso(1); setCategoriaId(''); setServicioId(''); setCantidad(1); setArchivos([]); setNotas('')
   }
 
+  const guardarPerfil = async () => {
+    if (!perfilForm.nombre || !perfilForm.apellido) { setPerfilErr('Completá nombre y apellido'); return }
+    setPerfilErr('')
+    const res = await fetch(`/api/auth/perfil/${usuario.id}`, { method: 'PUT', headers, body: JSON.stringify({ nombre: perfilForm.nombre + ' ' + perfilForm.apellido }) })
+    if (res.ok) { setPerfilMsg('Datos actualizados ✓'); setTimeout(() => setPerfilMsg(''), 3000) }
+    else setPerfilErr('Error al guardar')
+  }
+
+  const guardarPassword = async () => {
+    if (!passForm.actual || !passForm.nueva) { setPerfilErr('Completá todos los campos'); return }
+    if (passForm.nueva !== passForm.confirmar) { setPerfilErr('Las contraseñas no coinciden'); return }
+    if (passForm.nueva.length < 6) { setPerfilErr('Mínimo 6 caracteres'); return }
+    setPerfilErr('')
+    const res = await fetch(`/api/auth/password/${usuario.id}`, { method: 'PUT', headers, body: JSON.stringify({ password_actual: passForm.actual, password_nueva: passForm.nueva }) })
+    const data = await res.json()
+    if (res.ok) { setPerfilMsg('Contraseña actualizada ✓'); setPassForm({ actual: '', nueva: '', confirmar: '' }); setTimeout(() => setPerfilMsg(''), 3000) }
+    else setPerfilErr(data.error || 'Error al cambiar contraseña')
+  }
+
   const resetWizard = () => { setPaso(1); setCategoriaId(''); setServicioId(''); setCantidad(1); setArchivos([]); setNotas(''); setMensaje('') }
 
   return (
@@ -88,6 +113,11 @@ export default function PanelCliente({ usuario, onLogout }) {
         </div>
         <div className="flex items-center gap-4">
           <span className="text-sm text-gray-600">{usuario.nombre}</span>
+          <button onClick={() => { setModalPerfil(true); setPerfilMsg(''); setPerfilErr('') }}
+            className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 text-sm font-semibold flex items-center justify-center hover:bg-blue-200"
+            title="Mi perfil">
+            {usuario.nombre.charAt(0).toUpperCase()}
+          </button>
           <button onClick={() => { resetWizard(); setVista('nuevo') }}
             className="bg-blue-600 text-white px-4 py-1.5 rounded-lg text-sm font-medium hover:bg-blue-700">
             + Nuevo pedido
@@ -267,6 +297,65 @@ export default function PanelCliente({ usuario, onLogout }) {
           </div>
         )}
       </div>
+      {modalPerfil && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
+          <div className="bg-white rounded-2xl border border-gray-200 p-6 w-full max-w-sm">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold text-gray-800">Mi perfil</h3>
+              <button onClick={() => setModalPerfil(false)} className="text-gray-400 hover:text-gray-600 text-lg">×</button>
+            </div>
+            <div className="flex gap-2 mb-4">
+              {['datos', 'contraseña'].map(t => (
+                <button key={t} onClick={() => { setPerfilTab(t); setPerfilMsg(''); setPerfilErr('') }}
+                  className={'flex-1 py-1.5 text-xs font-medium rounded-lg ' + (perfilTab === t ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500')}>
+                  {t.charAt(0).toUpperCase() + t.slice(1)}
+                </button>
+              ))}
+            </div>
+            {perfilMsg && <p className="text-green-600 text-xs mb-3 bg-green-50 px-3 py-2 rounded-lg">{perfilMsg}</p>}
+            {perfilErr && <p className="text-red-500 text-xs mb-3 bg-red-50 px-3 py-2 rounded-lg">{perfilErr}</p>}
+            {perfilTab === 'datos' && (
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs text-gray-500 block mb-1">Nombre</label>
+                  <input value={perfilForm.nombre} onChange={e => setPerfilForm({ ...perfilForm, nombre: e.target.value })}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 block mb-1">Apellido</label>
+                  <input value={perfilForm.apellido} onChange={e => setPerfilForm({ ...perfilForm, apellido: e.target.value })}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+                </div>
+                <button onClick={guardarPerfil} className="w-full bg-blue-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-blue-700">
+                  Guardar
+                </button>
+              </div>
+            )}
+            {perfilTab === 'contraseña' && (
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs text-gray-500 block mb-1">Contraseña actual</label>
+                  <input type="password" value={passForm.actual} onChange={e => setPassForm({ ...passForm, actual: e.target.value })}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 block mb-1">Nueva contraseña</label>
+                  <input type="password" value={passForm.nueva} onChange={e => setPassForm({ ...passForm, nueva: e.target.value })}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 block mb-1">Confirmar nueva contraseña</label>
+                  <input type="password" value={passForm.confirmar} onChange={e => setPassForm({ ...passForm, confirmar: e.target.value })}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+                </div>
+                <button onClick={guardarPassword} className="w-full bg-blue-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-blue-700">
+                  Cambiar contraseña
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

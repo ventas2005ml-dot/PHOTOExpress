@@ -75,4 +75,35 @@ const login = async (req, res) => {
   }
 }
 
-module.exports = { registro, login }
+const actualizarPerfil = async (req, res) => {
+  try {
+    const { id } = req.params
+    const { nombre } = req.body
+    const result = await db.query(
+      'UPDATE usuarios SET nombre = $1 WHERE id = $2 RETURNING id, nombre, email, rol',
+      [nombre, id]
+    )
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Usuario no encontrado' })
+    res.json(result.rows[0])
+  } catch (error) {
+    res.status(500).json({ error: 'Error al actualizar perfil' })
+  }
+}
+
+const cambiarPassword = async (req, res) => {
+  try {
+    const { id } = req.params
+    const { password_actual, password_nueva } = req.body
+    const result = await db.query('SELECT password FROM usuarios WHERE id = $1', [id])
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Usuario no encontrado' })
+    const valido = await bcrypt.compare(password_actual, result.rows[0].password)
+    if (!valido) return res.status(400).json({ error: 'La contraseña actual es incorrecta' })
+    const hash = await bcrypt.hash(password_nueva, 10)
+    await db.query('UPDATE usuarios SET password = $1 WHERE id = $2', [hash, id])
+    res.json({ mensaje: 'Contraseña actualizada' })
+  } catch (error) {
+    res.status(500).json({ error: 'Error al cambiar contraseña' })
+  }
+}
+
+module.exports = { registro, login, actualizarPerfil, cambiarPassword }
