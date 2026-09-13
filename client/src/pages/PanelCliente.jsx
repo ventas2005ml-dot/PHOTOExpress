@@ -21,17 +21,23 @@ export default function PanelCliente({ usuario, onLogout }) {
   const [perfilErr, setPerfilErr] = useState('')
   const [pedidos, setPedidos] = useState([])
   const [servicios, setServicios] = useState([])
+
+  // Formulario de orden actual
   const [tipoPapel, setTipoPapel] = useState('')
   const [tamaniosSeleccionados, setTamaniosSeleccionados] = useState({})
   const [archivos, setArchivos] = useState([])
   const [cantidadPorFoto, setCantidadPorFoto] = useState({})
   const [notas, setNotas] = useState('')
-  const [enviando, setEnviando] = useState(false)
   const [mensaje, setMensaje] = useState('')
+
+  // Lista de ordenes acumuladas en pantalla 3
+  const [ordenes, setOrdenes] = useState([])
+
+  // Modales
   const [modalConfirmar, setModalConfirmar] = useState(false)
   const [modalProgreso, setModalProgreso] = useState(false)
   const [modalExito, setModalExito] = useState(false)
-  const [numeroPedido, setNumeroPedido] = useState('')
+  const [pedidosEnviados, setPedidosEnviados] = useState([])
 
   const token = localStorage.getItem('token')
   const headers = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }
@@ -57,7 +63,7 @@ export default function PanelCliente({ usuario, onLogout }) {
     })
   }
 
-  const totalPedido = () => {
+  const totalOrden = () => {
     return tamaniosIds.reduce((acc, sid) => {
       const s = servicios.find(x => x.id === sid)
       if (!s) return acc
@@ -66,39 +72,79 @@ export default function PanelCliente({ usuario, onLogout }) {
     }, 0)
   }
 
-  const resetForm = () => {
+  const resetOrden = () => {
     setTipoPapel(''); setTamaniosSeleccionados({})
-    setArchivos([]); setCantidadPorFoto({}); setNotas(''); setMensaje(''); setPantalla(1)
+    setArchivos([]); setCantidadPorFoto({}); setNotas(''); setMensaje('')
   }
 
-  const enviarPedido = async () => {
+  const agregarOrdenALista = () => {
+    if (archivos.length === 0) { setMensaje('Subi al menos una foto'); return }
+    const nuevaOrden = {
+      id: Date.now(),
+      tipoPapel,
+      tamaniosIds: [...tamaniosIds],
+      archivos: [...archivos],
+      cantidadPorFoto: { ...cantidadPorFoto },
+      notas,
+      total: totalOrden(),
+    }
+    setOrdenes(prev => [...prev, nuevaOrden])
+    resetOrden()
+    setPantalla(3)
+  }
+
+  const eliminarOrden = (id) => {
+    setOrdenes(prev => prev.filter(o => o.id !== id))
+  }
+
+  const enviarTodo = async () => {
     setModalConfirmar(false)
     setModalProgreso(true)
-    setEnviando(true)
+    const resultados = []
 
-    let archivosUrls = []
-    for (const archivo of archivos) {
-      const fd = new FormData(); fd.append('archivo', archivo)
-      const res = await fetch('/api/upload/comprobante', { method: 'POST', headers: { Authorization: 'Bearer ' + token }, body: fd })
-      const data = await res.json()
-      if (data.url) archivosUrls.push(data.url)
+    for (const orden of ordenes) {
+      // Crear el pedido primero para obtener el código
+      const items = orden.tamaniosIds.map(sid => {
+        const totalCopias = orden.archivos.reduce((sum, f) => sum + (orden.cantidadPorFoto[f.name]?.[sid] || 1), 0)
+        return { servicio_id: sid, cantidad: totalCopias }
+      })
+
+      const resPedido = await fetch('/api/pedidos', {
+        method: 'POST', headers,
+        body: JSON.stringify({ usuario_id: usuario.id, tipo_papel: orden.tipoPapel, notas: orden.notas, archivos_urls: [], items })
+      })
+      const pedidoData = await resPedido.json()
+      if (!resPedido.ok) continue
+
+      const codigo = pedidoData.codigo
+
+      // Subir archivos en carpeta del pedido
+      const archivosUrls = []
+      for (const archivo of orden.archivos) {
+        const fd = new FormData()
+        fd.append('archivo', archivo)
+        fd.append('codigo', codigo)
+        const resUp = await fetch('/api/upload/comprobante', { method: 'POST', headers: { Authorization: 'Bearer ' + token }, body: fd })
+        const upData = await resUp.json()
+        if (upData.url) archivosUrls.push(upData.url)
+      }
+
+      // Actualizar el pedido con las URLs
+      if (archivosUrls.length > 0) {
+        await fetch(`/api/pedidos/${pedidoData.id}/archivos`, {
+          method: 'PUT', headers,
+          body: JSON.stringify({ archivos_urls: archivosUrls })
+        })
+      }
+
+      resultados.push({ numero: codigo, archivos: archivosUrls.length })
+      setPedidos(prev => [pedidoData, ...prev])
     }
 
-    const items = tamaniosIds.map(sid => {
-      const totalCopias = archivos.reduce((sum, f) => sum + (cantidadPorFoto[f.name]?.[sid] || 1), 0)
-      return { servicio_id: sid, cantidad: totalCopias }
-    })
-
-    const res = await fetch('/api/pedidos', {
-      method: 'POST', headers,
-      body: JSON.stringify({ usuario_id: usuario.id, tipo_papel: tipoPapel, notas, archivos_urls: archivosUrls, items })
-    })
-    const data = await res.json()
-    setEnviando(false)
     setModalProgreso(false)
-    if (!res.ok) { setMensaje('Error al crear pedido'); return }
-    setPedidos(prev => [data, ...prev])
-    setNumeroPedido(data.codigo)
+    setPedidosEnviados(resultados)
+    setOrdenes([])
+    resetOrden()
     setModalExito(true)
   }
 
@@ -134,7 +180,7 @@ export default function PanelCliente({ usuario, onLogout }) {
             className="w-8 h-8 rounded-full bg-white text-blue-600 text-sm font-semibold flex items-center justify-center hover:bg-blue-50" title="Mi perfil">
             {usuario.nombre.charAt(0).toUpperCase()}
           </button>
-          <button onClick={() => { resetForm(); setVista('nuevo') }}
+          <button onClick={() => { resetOrden(); setOrdenes([]); setPantalla(1); setVista('nuevo') }}
             className="bg-white text-blue-600 px-4 py-1.5 rounded-lg text-sm font-medium hover:bg-blue-50">
             + Nuevo pedido
           </button>
@@ -150,7 +196,8 @@ export default function PanelCliente({ usuario, onLogout }) {
             {pedidos.length === 0 ? (
               <div className="bg-white rounded-xl border border-gray-200 p-10 text-center">
                 <p className="text-gray-400 text-sm mb-4">Todavia no tenes pedidos</p>
-                <button onClick={() => setVista('nuevo')} className="bg-blue-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-blue-700">
+                <button onClick={() => { resetOrden(); setOrdenes([]); setPantalla(1); setVista('nuevo') }}
+                  className="bg-blue-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-blue-700">
                   Hacer mi primer pedido
                 </button>
               </div>
@@ -161,7 +208,8 @@ export default function PanelCliente({ usuario, onLogout }) {
                     <div>
                       <p className="text-sm font-medium text-blue-600">{p.codigo}</p>
                       <p className="text-xs text-gray-400 mt-0.5">{new Date(p.creado_en).toLocaleDateString()}</p>
-                      {p.notas && <p className="text-xs text-gray-500 mt-1 truncate max-w-xs">{p.notas}</p>}
+                      {p.tipo_papel && <p className="text-xs text-gray-500 mt-1">{p.tipo_papel}</p>}
+                      {p.notas && <p className="text-xs text-gray-400 mt-0.5 truncate max-w-xs">{p.notas}</p>}
                     </div>
                     <div className="flex items-center gap-4">
                       <span className="text-sm font-medium text-gray-800">${parseFloat(p.total || 0).toLocaleString()}</span>
@@ -223,7 +271,7 @@ export default function PanelCliente({ usuario, onLogout }) {
                   </div>
                 </div>
                 <div className="flex justify-between px-5 py-3 border-t border-gray-100 bg-gray-50">
-                  <button onClick={() => { resetForm(); setVista('dashboard') }} className="text-sm text-gray-400 hover:text-gray-600">Cancelar</button>
+                  <button onClick={() => { resetOrden(); setOrdenes([]); setVista('dashboard') }} className="text-sm text-gray-400 hover:text-gray-600">Cancelar</button>
                   <button onClick={() => {
                     if (!tipoPapel) { setMensaje('Selecciona el tipo de papel'); return }
                     if (tamaniosIds.length === 0) { setMensaje('Selecciona al menos un tamano'); return }
@@ -290,16 +338,14 @@ export default function PanelCliente({ usuario, onLogout }) {
                         {' - '}{tamaniosIds.map(sid => servicios.find(x => x.id === sid)?.nombre.replace(/^Foto /, '')).join(', ')}
                         {' - '}{archivos.length} foto{archivos.length !== 1 ? 's' : ''}
                         {' - Total: '}
-                        <span className="font-semibold text-gray-800">${totalPedido().toLocaleString()}</span>
+                        <span className="font-semibold text-gray-800">${totalOrden().toLocaleString()}</span>
                       </span>
                     )}
                   </div>
                   <div className="flex gap-3">
                     <button onClick={() => { setMensaje(''); setPantalla(1) }} className="text-sm text-gray-400 hover:text-gray-600 px-4 py-2">Atras</button>
-                    <button onClick={() => {
-                      if (archivos.length === 0) { setMensaje('Subi al menos una foto'); return }
-                      setMensaje(''); setPantalla(3)
-                    }} className="bg-blue-600 text-white px-6 py-2 rounded-lg text-sm font-medium hover:bg-blue-700">
+                    <button onClick={agregarOrdenALista}
+                      className="bg-blue-600 text-white px-6 py-2 rounded-lg text-sm font-medium hover:bg-blue-700">
                       Siguiente
                     </button>
                   </div>
@@ -318,35 +364,55 @@ export default function PanelCliente({ usuario, onLogout }) {
                         <th className="text-left text-xs font-semibold text-gray-500 uppercase pb-3">Archivos</th>
                         <th className="text-left text-xs font-semibold text-gray-500 uppercase pb-3">Copias</th>
                         <th className="text-left text-xs font-semibold text-gray-500 uppercase pb-3">Detalle</th>
+                        <th className="text-left text-xs font-semibold text-gray-500 uppercase pb-3">Total</th>
+                        <th></th>
                       </tr>
                     </thead>
                     <tbody>
-                      <tr>
-                        <td className="py-3 text-sm text-gray-700">1</td>
-                        <td className="py-3 text-sm text-gray-700">{tipoPapel}</td>
-                        <td className="py-3 text-sm text-gray-700">{archivos.length}</td>
-                        <td className="py-3 text-sm text-gray-700">
-                          {tamaniosIds.reduce((sum, sid) => sum + archivos.reduce((s, f) => s + (cantidadPorFoto[f.name]?.[sid] || 1), 0), 0)}
-                        </td>
-                        <td className="py-3 text-sm text-gray-700">
-                          {tamaniosIds.map(sid => {
-                            const s = servicios.find(x => x.id === sid)
-                            const copias = archivos.reduce((sum, f) => sum + (cantidadPorFoto[f.name]?.[sid] || 1), 0)
-                            return `${s?.nombre.replace(/^Foto /, '')}(${copias})`
-                          }).join(', ')}
-                        </td>
-                      </tr>
+                      {ordenes.map((o, i) => (
+                        <tr key={o.id} className="border-b border-gray-50">
+                          <td className="py-3 text-sm text-gray-700">{i + 1}</td>
+                          <td className="py-3 text-sm text-gray-700">{o.tipoPapel}</td>
+                          <td className="py-3 text-sm text-gray-700">{o.archivos.length}</td>
+                          <td className="py-3 text-sm text-gray-700">
+                            {o.tamaniosIds.reduce((sum, sid) => sum + o.archivos.reduce((s, f) => s + (o.cantidadPorFoto[f.name]?.[sid] || 1), 0), 0)}
+                          </td>
+                          <td className="py-3 text-sm text-gray-700">
+                            {o.tamaniosIds.map(sid => {
+                              const s = servicios.find(x => x.id === sid)
+                              const copias = o.archivos.reduce((sum, f) => sum + (o.cantidadPorFoto[f.name]?.[sid] || 1), 0)
+                              return `${s?.nombre.replace(/^Foto /, '')}(${copias})`
+                            }).join(', ')}
+                          </td>
+                          <td className="py-3 text-sm font-medium text-gray-800">${o.total.toLocaleString()}</td>
+                          <td className="py-3">
+                            <button onClick={() => eliminarOrden(o.id)} className="text-xs text-red-400 hover:text-red-600">Eliminar</button>
+                          </td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
+                  {ordenes.length > 0 && (
+                    <div className="mt-3 flex justify-end border-t border-gray-100 pt-3">
+                      <span className="text-sm font-semibold text-gray-800">
+                        Total: ${ordenes.reduce((sum, o) => sum + o.total, 0).toLocaleString()}
+                      </span>
+                    </div>
+                  )}
                 </div>
-                <div className="flex justify-end gap-3 px-5 py-3 border-t border-gray-100 bg-gray-50">
-                  <button onClick={() => setPantalla(2)} className="border border-gray-200 text-gray-600 px-5 py-2 rounded-lg text-sm font-medium hover:bg-gray-100">
-                    Atras
+                <div className="flex justify-between px-5 py-3 border-t border-gray-100 bg-gray-50">
+                  <button onClick={() => { resetOrden(); setPantalla(1) }}
+                    className="border border-gray-200 text-gray-600 px-5 py-2 rounded-lg text-sm font-medium hover:bg-gray-100">
+                    Cargar nueva orden
                   </button>
-                  <button onClick={() => setModalConfirmar(true)}
-                    className="bg-green-600 text-white px-6 py-2 rounded-lg text-sm font-medium hover:bg-green-700">
-                    Enviar
-                  </button>
+                  <div className="flex gap-3">
+                    <button onClick={() => { resetOrden(); setOrdenes([]); setVista('dashboard') }}
+                      className="text-sm text-gray-400 hover:text-gray-600 px-4 py-2">Cancelar</button>
+                    <button onClick={() => ordenes.length > 0 && setModalConfirmar(true)} disabled={ordenes.length === 0}
+                      className="bg-green-600 text-white px-6 py-2 rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-40">
+                      Enviar
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
@@ -415,11 +481,12 @@ export default function PanelCliente({ usuario, onLogout }) {
       {modalConfirmar && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
           <div className="bg-white rounded-xl p-6 w-full max-w-sm shadow-xl">
-            <h3 className="text-base font-semibold text-gray-800 mb-2">Desea confirmar el pedido?</h3>
-            <p className="text-sm text-gray-500 mb-6">A continuacion se enviaran todos los pedidos al laboratorio.</p>
+            <h3 className="text-base font-semibold text-gray-800 mb-2">Confirmar envio</h3>
+            <p className="text-sm text-gray-500 mb-2">Se van a enviar <strong>{ordenes.length}</strong> orden{ordenes.length !== 1 ? 'es' : ''} al laboratorio.</p>
+            <p className="text-sm font-semibold text-gray-800 mb-6">Total: ${ordenes.reduce((sum, o) => sum + o.total, 0).toLocaleString()}</p>
             <div className="flex justify-end gap-3">
               <button onClick={() => setModalConfirmar(false)} className="border border-gray-200 text-gray-600 px-4 py-2 rounded-lg text-sm hover:bg-gray-50">Cancelar</button>
-              <button onClick={enviarPedido} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700">Si, confirmar</button>
+              <button onClick={enviarTodo} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700">Si, confirmar</button>
             </div>
           </div>
         </div>
@@ -446,19 +513,23 @@ export default function PanelCliente({ usuario, onLogout }) {
                 <tr className="border-b border-gray-100">
                   <th className="text-left text-xs font-semibold text-gray-500 uppercase pb-2">Pedido</th>
                   <th className="text-left text-xs font-semibold text-gray-500 uppercase pb-2">Numero de Orden</th>
+                  <th className="text-left text-xs font-semibold text-gray-500 uppercase pb-2">Archivos</th>
                 </tr>
               </thead>
               <tbody>
-                <tr>
-                  <td className="py-2 text-sm text-gray-700">1</td>
-                  <td className="py-2 text-sm text-gray-700">{numeroPedido}</td>
-                </tr>
+                {pedidosEnviados.map((p, i) => (
+                  <tr key={i}>
+                    <td className="py-2 text-sm text-gray-700">{i + 1}</td>
+                    <td className="py-2 text-sm text-gray-700">{p.numero}</td>
+                    <td className="py-2 text-sm text-gray-700">{p.archivos}</td>
+                  </tr>
+                ))}
               </tbody>
             </table>
             <div className="flex justify-end gap-3">
-              <button onClick={() => { setModalExito(false); resetForm(); setVista('dashboard') }}
+              <button onClick={() => { setModalExito(false); setPantalla(1); setVista('dashboard') }}
                 className="border border-gray-200 text-gray-600 px-4 py-2 rounded-lg text-sm hover:bg-gray-50">Volver a inicio</button>
-              <button onClick={() => { setModalExito(false); resetForm(); onLogout() }}
+              <button onClick={() => { setModalExito(false); onLogout() }}
                 className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700">Cerrar Sesion</button>
             </div>
           </div>
