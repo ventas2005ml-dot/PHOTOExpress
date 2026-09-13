@@ -1,13 +1,13 @@
 import { useState } from 'react'
 
 export default function Registro({ onVolver }) {
-  const [form, setForm] = useState({ nombre: '', email: '', password: '', confirmar: '' })
+  const [form, setForm] = useState({ nombre: '', apellido: '', email: '', password: '', confirmar: '' })
   const [cargando, setCargando] = useState(false)
   const [mensaje, setMensaje] = useState('')
   const [error, setError] = useState('')
 
   const handleSubmit = async () => {
-    if (!form.nombre || !form.email || !form.password) { setError('Completá todos los campos'); return }
+    if (!form.nombre || !form.apellido || !form.email || !form.password) { setError('Completá todos los campos'); return }
     if (form.password !== form.confirmar) { setError('Las contraseñas no coinciden'); return }
     if (form.password.length < 6) { setError('La contraseña debe tener al menos 6 caracteres'); return }
     setCargando(true)
@@ -15,7 +15,7 @@ export default function Registro({ onVolver }) {
     const res = await fetch('/api/auth/registro', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nombre: form.nombre, email: form.email, password: form.password, rol: 'cliente' })
+      body: JSON.stringify({ nombre: form.nombre + ' ' + form.apellido, email: form.email, password: form.password, rol: 'cliente' })
     })
     const data = await res.json()
     setCargando(false)
@@ -50,10 +50,16 @@ export default function Registro({ onVolver }) {
 
         <div className="space-y-3">
           <div>
-            <label className="text-xs text-gray-500 block mb-1">Nombre completo</label>
+            <label className="text-xs text-gray-500 block mb-1">Nombre</label>
             <input value={form.nombre} onChange={e => setForm({ ...form, nombre: e.target.value })}
               className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               placeholder="Tu nombre"/>
+          </div>
+          <div>
+            <label className="text-xs text-gray-500 block mb-1">Apellido</label>
+            <input value={form.apellido} onChange={e => setForm({ ...form, apellido: e.target.value })}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Tu apellido"/>
           </div>
           <div>
             <label className="text-xs text-gray-500 block mb-1">Email</label>
