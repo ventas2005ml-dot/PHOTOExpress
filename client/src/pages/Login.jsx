@@ -1,10 +1,19 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 export default function Login({ onLogin, onRegistro }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [recordar, setRecordar] = useState(false)
   const [error, setError] = useState('')
   const [cargando, setCargando] = useState(false)
+
+  useEffect(() => {
+    const token = localStorage.getItem('token')
+    const usuarioGuardado = localStorage.getItem('usuario')
+    if (token && usuarioGuardado) {
+      try { onLogin(JSON.parse(usuarioGuardado)) } catch {}
+    }
+  }, [])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -21,6 +30,11 @@ export default function Login({ onLogin, onRegistro }) {
         setError(data.error || 'Error al iniciar sesión')
       } else {
         localStorage.setItem('token', data.token)
+        if (recordar) {
+          localStorage.setItem('usuario', JSON.stringify(data.usuario))
+        } else {
+          localStorage.removeItem('usuario')
+        }
         onLogin(data.usuario)
       }
     } catch {
@@ -66,6 +80,12 @@ export default function Login({ onLogin, onRegistro }) {
           {error && (
             <p className="text-sm text-red-500 bg-red-50 px-3 py-2 rounded-lg">{error}</p>
           )}
+
+          <div className="flex items-center gap-2">
+            <input type="checkbox" id="recordar" checked={recordar} onChange={e => setRecordar(e.target.checked)}
+              className="rounded border-gray-300 text-blue-600"/>
+            <label htmlFor="recordar" className="text-sm text-gray-500 cursor-pointer">Recordarme en este dispositivo</label>
+          </div>
 
           <button
             type="submit"

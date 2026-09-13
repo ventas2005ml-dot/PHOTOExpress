@@ -9,7 +9,12 @@ function App() {
   const [usuario, setUsuario] = useState(null)
   const [pantalla, setPantalla] = useState('login') // login | registro
 
-  const handleLogout = () => { setUsuario(null); setPantalla('login') }
+  const handleLogout = () => {
+    localStorage.removeItem('token')
+    localStorage.removeItem('usuario')
+    setUsuario(null)
+    setPantalla('login')
+  }
 
   if (!usuario) {
     if (pantalla === 'registro') return <Registro onVolver={() => setPantalla('login')} />
