@@ -295,10 +295,22 @@ export default function PanelCliente({ usuario, onLogout }) {
                   <div className="border-2 border-dashed border-gray-200 rounded-lg p-5 text-center cursor-pointer hover:border-blue-400 transition-colors mb-3"
                     onClick={() => document.getElementById('file-input').click()}
                     onDragOver={e => e.preventDefault()}
-                    onDrop={e => { e.preventDefault(); setArchivos(prev => [...prev, ...Array.from(e.dataTransfer.files)]) }}>
-                    <p className="text-sm text-gray-400">Arrastra carpetas o archivos aca</p>
-                    <input id="file-input" type="file" multiple accept="image/*" className="hidden"
-                      onChange={e => setArchivos(prev => [...prev, ...Array.from(e.target.files)])}/>
+                    onDrop={e => {
+                      e.preventDefault()
+                      const validos = Array.from(e.dataTransfer.files).filter(f => f.type === 'image/jpeg')
+                      if (validos.length < e.dataTransfer.files.length) setMensaje('Solo se aceptan archivos JPG/JPEG')
+                      else setMensaje('')
+                      setArchivos(prev => [...prev, ...validos])
+                    }}>
+                    <p className="text-sm text-gray-400">Arrastra archivos JPG/JPEG aca</p>
+                    <p className="text-xs text-gray-300 mt-1">Solo se aceptan archivos .jpg / .jpeg</p>
+                    <input id="file-input" type="file" multiple accept=".jpg,.jpeg,image/jpeg" className="hidden"
+                      onChange={e => {
+                        const validos = Array.from(e.target.files).filter(f => f.type === 'image/jpeg')
+                        if (validos.length < e.target.files.length) setMensaje('Solo se aceptan archivos JPG/JPEG')
+                        else setMensaje('')
+                        setArchivos(prev => [...prev, ...validos])
+                      }}/>
                   </div>
                   <button onClick={() => document.getElementById('file-input').click()}
                     className="text-sm border border-gray-200 px-4 py-1.5 rounded-lg text-gray-600 hover:bg-gray-50">
