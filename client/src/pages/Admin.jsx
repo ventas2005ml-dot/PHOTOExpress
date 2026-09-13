@@ -440,7 +440,7 @@ export default function Admin({ usuario, onLogout }) {
                       <th className="text-left text-xs font-medium text-gray-500 px-4 py-3">Estado</th>
                       <th className="text-left text-xs font-medium text-gray-500 px-4 py-3">Total</th>
                       <th className="text-left text-xs font-medium text-gray-500 px-4 py-3">Fecha</th>
-                      <th className="text-left text-xs font-medium text-gray-500 px-4 py-3">Comprobante</th>
+                      <th className="text-left text-xs font-medium text-gray-500 px-4 py-3">Estado</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -468,13 +468,16 @@ export default function Admin({ usuario, onLogout }) {
                           <td className="px-4 py-3 text-sm font-medium text-gray-800">${parseFloat(p.total || 0).toLocaleString()}</td>
                           <td className="px-4 py-3 text-sm text-gray-400">{new Date(p.creado_en).toLocaleDateString()}</td>
                           <td className="px-4 py-3 text-sm">
-                            {p.pago_id ? (
-                              <label className="cursor-pointer text-xs text-blue-600 hover:text-blue-800">
-                                {subiendoComprobante === p.pago_id ? 'Subiendo...' : 'Subir'}
-                                <input type="file" accept="image/*,application/pdf" className="hidden"
-                                  onChange={e => e.target.files[0] && subirComprobante(p.pago_id, e.target.files[0])}/>
-                              </label>
-                            ) : <span className="text-gray-300">—</span>}
+                            <select value={p.estado} onChange={async e => {
+                              await fetch(`/api/pedidos/${p.id}/estado`, { method: 'PUT', headers, body: JSON.stringify({ estado: e.target.value }) })
+                              setPedidos(prev => prev.map(x => x.id === p.id ? { ...x, estado: e.target.value } : x))
+                            }} className="border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500">
+                              <option value="pendiente">Pendiente</option>
+                              <option value="en_proceso">En proceso</option>
+                              <option value="listo">Listo</option>
+                              <option value="entregado">Entregado</option>
+                              <option value="cancelado">Cancelado</option>
+                            </select>
                           </td>
                         </tr>
                       ))}
