@@ -1,4 +1,4 @@
-const db = require('../config/database')
+const db = require('../../config/database')
 
 const NEXTCLOUD_URL = process.env.NEXTCLOUD_URL || 'http://192.168.1.3:8090'
 const NEXTCLOUD_USER = process.env.NEXTCLOUD_USER || 'Photoexpress'
