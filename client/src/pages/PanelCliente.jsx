@@ -43,7 +43,7 @@ export default function PanelCliente({ usuario, onLogout }) {
   }, [])
 
   const tamaniosIds = Object.keys(tamaniosSeleccionados).map(Number)
-  const tamaniosFotos = servicios.filter(s => s.nombre.match(/^\d/))
+  const tamaniosFotos = servicios
 
   const toggleTamanio = (servicioId) => {
     setTamaniosSeleccionados(prev => {
