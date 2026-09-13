@@ -1,4 +1,5 @@
 const db = require('../../config/database')
+const { enviarMailPedidoRecibido, enviarMailPedidoListo } = require('../../config/mailer')
 
 const generarCodigo = async () => {
   const result = await db.query('SELECT COUNT(*) FROM pedidos')
@@ -87,6 +88,14 @@ const crearPedido = async (req, res) => {
     }
 
     res.status(201).json({ ...pedido, codigo })
+
+    // Mail asíncrono — no bloquea la respuesta
+    try {
+      const usuarioData = await db.query('SELECT nombre, email FROM usuarios WHERE id = $1', [usuario_id])
+      if (usuarioData.rows.length > 0) {
+        await enviarMailPedidoRecibido({ ...usuarioData.rows[0], codigo, total: pedido.total })
+      }
+    } catch (e) { console.error('Error enviando mail:', e.message) }
   } catch (error) {
     res.status(500).json({ error: 'Error al crear pedido' })
   }
@@ -108,6 +117,19 @@ const actualizarEstado = async (req, res) => {
       return res.status(404).json({ error: 'Pedido no encontrado' })
     }
     res.json(result.rows[0])
+
+    // Mail cuando pasa a listo
+    if (estado === 'listo') {
+      try {
+        const pedidoData = await db.query(
+          'SELECT p.codigo, u.nombre, u.email FROM pedidos p LEFT JOIN usuarios u ON p.usuario_id = u.id WHERE p.id = $1',
+          [id]
+        )
+        if (pedidoData.rows.length > 0 && pedidoData.rows[0].email) {
+          await enviarMailPedidoListo(pedidoData.rows[0])
+        }
+      } catch (e) { console.error('Error enviando mail:', e.message) }
+    }
   } catch (error) {
     res.status(500).json({ error: 'Error al actualizar estado' })
   }
