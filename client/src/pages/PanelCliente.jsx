@@ -28,6 +28,10 @@ export default function PanelCliente({ usuario, onLogout }) {
   const [notas, setNotas] = useState('')
   const [enviando, setEnviando] = useState(false)
   const [mensaje, setMensaje] = useState('')
+  const [modalConfirmar, setModalConfirmar] = useState(false)
+  const [modalProgreso, setModalProgreso] = useState(false)
+  const [modalExito, setModalExito] = useState(false)
+  const [numeroPedido, setNumeroPedido] = useState('')
 
   const token = localStorage.getItem('token')
   const headers = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }
@@ -68,8 +72,9 @@ export default function PanelCliente({ usuario, onLogout }) {
   }
 
   const enviarPedido = async () => {
-    if (archivos.length === 0) { setMensaje('Subí al menos una foto'); return }
-    setEnviando(true); setMensaje('')
+    setModalConfirmar(false)
+    setModalProgreso(true)
+    setEnviando(true)
 
     let archivosUrls = []
     for (const archivo of archivos) {
@@ -90,13 +95,15 @@ export default function PanelCliente({ usuario, onLogout }) {
     })
     const data = await res.json()
     setEnviando(false)
+    setModalProgreso(false)
     if (!res.ok) { setMensaje('Error al crear pedido'); return }
     setPedidos(prev => [data, ...prev])
-    resetForm(); setVista('dashboard')
+    setNumeroPedido(data.codigo)
+    setModalExito(true)
   }
 
   const guardarPerfil = async () => {
-    if (!perfilForm.nombre || !perfilForm.apellido) { setPerfilErr('Completá nombre y apellido'); return }
+    if (!perfilForm.nombre || !perfilForm.apellido) { setPerfilErr('Completa nombre y apellido'); return }
     setPerfilErr('')
     const res = await fetch(`/api/auth/perfil/${usuario.id}`, { method: 'PUT', headers, body: JSON.stringify({ nombre: perfilForm.nombre + ' ' + perfilForm.apellido }) })
     if (res.ok) { setPerfilMsg('Datos actualizados'); setTimeout(() => setPerfilMsg(''), 3000) }
@@ -289,11 +296,57 @@ export default function PanelCliente({ usuario, onLogout }) {
                   </div>
                   <div className="flex gap-3">
                     <button onClick={() => { setMensaje(''); setPantalla(1) }} className="text-sm text-gray-400 hover:text-gray-600 px-4 py-2">Atras</button>
-                    <button onClick={enviarPedido} disabled={enviando}
-                      className="bg-green-600 text-white px-6 py-2 rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50">
-                      {enviando ? 'Enviando...' : 'Enviar pedido'}
+                    <button onClick={() => {
+                      if (archivos.length === 0) { setMensaje('Subi al menos una foto'); return }
+                      setMensaje(''); setPantalla(3)
+                    }} className="bg-blue-600 text-white px-6 py-2 rounded-lg text-sm font-medium hover:bg-blue-700">
+                      Siguiente
                     </button>
                   </div>
+                </div>
+              </div>
+            )}
+
+            {pantalla === 3 && (
+              <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                <div className="p-5">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-gray-100">
+                        <th className="text-left text-xs font-semibold text-gray-500 uppercase pb-3">Pedido</th>
+                        <th className="text-left text-xs font-semibold text-gray-500 uppercase pb-3">Papel</th>
+                        <th className="text-left text-xs font-semibold text-gray-500 uppercase pb-3">Archivos</th>
+                        <th className="text-left text-xs font-semibold text-gray-500 uppercase pb-3">Copias</th>
+                        <th className="text-left text-xs font-semibold text-gray-500 uppercase pb-3">Detalle</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td className="py-3 text-sm text-gray-700">1</td>
+                        <td className="py-3 text-sm text-gray-700">{tipoPapel}</td>
+                        <td className="py-3 text-sm text-gray-700">{archivos.length}</td>
+                        <td className="py-3 text-sm text-gray-700">
+                          {tamaniosIds.reduce((sum, sid) => sum + archivos.reduce((s, f) => s + (cantidadPorFoto[f.name]?.[sid] || 1), 0), 0)}
+                        </td>
+                        <td className="py-3 text-sm text-gray-700">
+                          {tamaniosIds.map(sid => {
+                            const s = servicios.find(x => x.id === sid)
+                            const copias = archivos.reduce((sum, f) => sum + (cantidadPorFoto[f.name]?.[sid] || 1), 0)
+                            return `${s?.nombre.replace(/^Foto /, '')}(${copias})`
+                          }).join(', ')}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div className="flex justify-end gap-3 px-5 py-3 border-t border-gray-100 bg-gray-50">
+                  <button onClick={() => setPantalla(2)} className="border border-gray-200 text-gray-600 px-5 py-2 rounded-lg text-sm font-medium hover:bg-gray-100">
+                    Atras
+                  </button>
+                  <button onClick={() => setModalConfirmar(true)}
+                    className="bg-green-600 text-white px-6 py-2 rounded-lg text-sm font-medium hover:bg-green-700">
+                    Enviar
+                  </button>
                 </div>
               </div>
             )}
@@ -301,6 +354,7 @@ export default function PanelCliente({ usuario, onLogout }) {
         )}
       </div>
 
+      {/* Modal perfil */}
       {modalPerfil && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
           <div className="bg-white rounded-2xl border border-gray-200 p-6 w-full max-w-sm">
@@ -353,6 +407,60 @@ export default function PanelCliente({ usuario, onLogout }) {
                 <button onClick={guardarPassword} className="w-full bg-blue-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-blue-700">Cambiar contrasena</button>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Modal confirmacion */}
+      {modalConfirmar && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
+          <div className="bg-white rounded-xl p-6 w-full max-w-sm shadow-xl">
+            <h3 className="text-base font-semibold text-gray-800 mb-2">Desea confirmar el pedido?</h3>
+            <p className="text-sm text-gray-500 mb-6">A continuacion se enviaran todos los pedidos al laboratorio.</p>
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setModalConfirmar(false)} className="border border-gray-200 text-gray-600 px-4 py-2 rounded-lg text-sm hover:bg-gray-50">Cancelar</button>
+              <button onClick={enviarPedido} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700">Si, confirmar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal progreso */}
+      {modalProgreso && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
+          <div className="bg-white rounded-xl p-8 w-full max-w-sm shadow-xl text-center">
+            <p className="text-sm font-medium text-gray-700 mb-4">Aguarda mientras procesamos tu trabajo</p>
+            <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto"/>
+          </div>
+        </div>
+      )}
+
+      {/* Modal exito */}
+      {modalExito && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
+          <div className="bg-white rounded-xl p-6 w-full max-w-sm shadow-xl">
+            <h3 className="text-base font-semibold text-gray-800 mb-3">Ordenes enviadas correctamente</h3>
+            <div className="w-full bg-blue-600 rounded-full h-1.5 mb-4"/>
+            <table className="w-full mb-5">
+              <thead>
+                <tr className="border-b border-gray-100">
+                  <th className="text-left text-xs font-semibold text-gray-500 uppercase pb-2">Pedido</th>
+                  <th className="text-left text-xs font-semibold text-gray-500 uppercase pb-2">Numero de Orden</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td className="py-2 text-sm text-gray-700">1</td>
+                  <td className="py-2 text-sm text-gray-700">{numeroPedido}</td>
+                </tr>
+              </tbody>
+            </table>
+            <div className="flex justify-end gap-3">
+              <button onClick={() => { setModalExito(false); resetForm(); setVista('dashboard') }}
+                className="border border-gray-200 text-gray-600 px-4 py-2 rounded-lg text-sm hover:bg-gray-50">Volver a inicio</button>
+              <button onClick={() => { setModalExito(false); resetForm(); onLogout() }}
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700">Cerrar Sesion</button>
+            </div>
           </div>
         </div>
       )}
