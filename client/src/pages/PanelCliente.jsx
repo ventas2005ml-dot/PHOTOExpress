@@ -21,6 +21,9 @@ export default function PanelCliente({ usuario, onLogout }) {
   const [perfilErr, setPerfilErr] = useState('')
   const [pedidos, setPedidos] = useState([])
   const [servicios, setServicios] = useState([])
+  const [filtros, setFiltros] = useState({ fecha: '', codigo: '', archivos: '', copias: '', medidas: '', estado: '', fechaFin: '', notas: '' })
+  const [ordenCol, setOrdenCol] = useState('creado_en')
+  const [ordenDir, setOrdenDir] = useState('desc')
 
   // Formulario de orden actual
   const [tipoPapel, setTipoPapel] = useState('')
@@ -176,6 +179,8 @@ export default function PanelCliente({ usuario, onLogout }) {
         </div>
         <div className="flex items-center gap-4">
           <span className="text-sm text-blue-100">{usuario.nombre}</span>
+          <button onClick={() => setVista('dashboard')} className="text-sm text-blue-100 hover:text-white">Mis pedidos</button>
+          <button onClick={() => setVista('precios')} className="text-sm text-blue-100 hover:text-white">Precio</button>
           <button onClick={() => { setModalPerfil(true); setPerfilMsg(''); setPerfilErr('') }}
             className="w-8 h-8 rounded-full bg-white text-blue-600 text-sm font-semibold flex items-center justify-center hover:bg-blue-50" title="Mi perfil">
             {usuario.nombre.charAt(0).toUpperCase()}
@@ -192,35 +197,119 @@ export default function PanelCliente({ usuario, onLogout }) {
 
         {vista === 'dashboard' && (
           <div>
-            <h2 className="text-base font-semibold text-gray-800 mb-4">Mis pedidos</h2>
-            {pedidos.length === 0 ? (
-              <div className="bg-white rounded-xl border border-gray-200 p-10 text-center">
-                <p className="text-gray-400 text-sm mb-4">Todavia no tenes pedidos</p>
-                <button onClick={() => { resetOrden(); setOrdenes([]); setPantalla(1); setVista('nuevo') }}
-                  className="bg-blue-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-blue-700">
-                  Hacer mi primer pedido
-                </button>
+            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-gray-50 border-b border-gray-200">
+                      {[
+                        { key: 'creado_en', label: 'Fecha Creación' },
+                        { key: 'codigo', label: 'Nro. Orden' },
+                        { key: 'tipo_papel', label: 'Papel' },
+                        { key: 'archivos', label: 'Cant. Archivos' },
+                        { key: 'copias', label: 'Cant. Copias' },
+                        { key: 'medidas', label: 'Medidas' },
+                        { key: 'estado', label: 'Estado' },
+                        { key: 'finalizado_en', label: 'Fecha Finalización' },
+                        { key: 'notas', label: 'Comentarios' },
+                      ].map(col => (
+                        <th key={col.key} className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase cursor-pointer select-none whitespace-nowrap"
+                          onClick={() => { setOrdenCol(col.key); setOrdenDir(prev => ordenCol === col.key && prev === 'asc' ? 'desc' : 'asc') }}>
+                          {col.label} {ordenCol === col.key ? (ordenDir === 'asc' ? '↑' : '↓') : ''}
+                        </th>
+                      ))}
+                    </tr>
+                    <tr className="border-b border-gray-100 bg-white">
+                      {['fecha', 'codigo', 'papel', 'archivos', 'copias', 'medidas', 'estado', 'fechaFin', 'notas'].map(k => (
+                        <th key={k} className="px-2 py-1">
+                          <input value={filtros[k] || ''} onChange={e => setFiltros(prev => ({ ...prev, [k]: e.target.value }))}
+                            className="w-full border border-gray-200 rounded px-2 py-1 text-xs font-normal focus:outline-none focus:ring-1 focus:ring-blue-400" placeholder=""/>
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pedidos
+                      .filter(p => {
+                        const f = filtros
+                        const medidas = p.items?.map(i => `${i.servicio_nombre?.replace(/^Foto /, '')}(${i.cantidad})`).join(', ') || ''
+                        return (
+                          (!f.fecha || new Date(p.creado_en).toLocaleDateString().includes(f.fecha)) &&
+                          (!f.codigo || p.codigo?.toLowerCase().includes(f.codigo.toLowerCase())) &&
+                          (!f.papel || (p.tipo_papel || '').toLowerCase().includes(f.papel.toLowerCase())) &&
+                          (!f.estado || p.estado?.toLowerCase().includes(f.estado.toLowerCase())) &&
+                          (!f.medidas || medidas.toLowerCase().includes(f.medidas.toLowerCase())) &&
+                          (!f.notas || (p.notas || '').toLowerCase().includes(f.notas.toLowerCase()))
+                        )
+                      })
+                      .sort((a, b) => {
+                        let va = a[ordenCol] || ''; let vb = b[ordenCol] || ''
+                        return ordenDir === 'asc' ? (va > vb ? 1 : -1) : (va < vb ? 1 : -1)
+                      })
+                      .map(p => {
+                        const medidas = p.items?.map(i => `${i.servicio_nombre?.replace(/^Foto /, '')}(${i.cantidad})`).join(', ') || '—'
+                        const totalCopias = p.items?.reduce((sum, i) => sum + i.cantidad, 0) || 0
+                        return (
+                          <tr key={p.id} className="border-b border-gray-50 hover:bg-gray-50">
+                            <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{new Date(p.creado_en).toLocaleDateString()}</td>
+                            <td className="px-3 py-2 text-blue-600 font-medium whitespace-nowrap">{p.codigo}</td>
+                            <td className="px-3 py-2 text-gray-700 whitespace-nowrap">{p.tipo_papel || '—'}</td>
+                            <td className="px-3 py-2 text-center text-gray-700">{p.archivos_urls?.length || 0}</td>
+                            <td className="px-3 py-2 text-center text-gray-700">{totalCopias || '—'}</td>
+                            <td className="px-3 py-2 text-gray-600 text-xs whitespace-nowrap">{medidas}</td>
+                            <td className="px-3 py-2 whitespace-nowrap">
+                              <span className={'text-xs px-2 py-1 rounded-full font-medium ' + ({
+                                ingresado: 'bg-gray-100 text-gray-600',
+                                facturado: 'bg-yellow-100 text-yellow-700',
+                                cobrado: 'bg-blue-100 text-blue-700',
+                                en_proceso: 'bg-orange-100 text-orange-700',
+                                finalizado: 'bg-green-100 text-green-700',
+                              }[p.estado] || 'bg-gray-100 text-gray-500')}>
+                                {p.estado?.replace('_', ' ')}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2 text-gray-400 whitespace-nowrap text-xs">
+                              {p.finalizado_en ? new Date(p.finalizado_en).toLocaleDateString() : '—'}
+                            </td>
+                            <td className="px-3 py-2 text-gray-500 text-xs max-w-xs truncate">{p.notas || '—'}</td>
+                          </tr>
+                        )
+                      })}
+                    {pedidos.length === 0 && (
+                      <tr><td colSpan="9" className="px-3 py-8 text-center text-gray-400">No tenés pedidos todavía</td></tr>
+                    )}
+                  </tbody>
+                </table>
               </div>
-            ) : (
-              <div className="space-y-3">
-                {pedidos.map(p => (
-                  <div key={p.id} className="bg-white rounded-xl border border-gray-200 p-4 flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-blue-600">{p.codigo}</p>
-                      <p className="text-xs text-gray-400 mt-0.5">{new Date(p.creado_en).toLocaleDateString()}</p>
-                      {p.tipo_papel && <p className="text-xs text-gray-500 mt-1">{p.tipo_papel}</p>}
-                      {p.notas && <p className="text-xs text-gray-400 mt-0.5 truncate max-w-xs">{p.notas}</p>}
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <span className="text-sm font-medium text-gray-800">${parseFloat(p.total || 0).toLocaleString()}</span>
-                      <span className={'text-xs px-2 py-1 rounded-full font-medium ' + (BADGE[p.estado] || 'bg-gray-100 text-gray-500')}>
-                        {p.estado?.replace('_', ' ')}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+            </div>
+          </div>
+        )}
+
+        {vista === 'precios' && (
+          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div className="p-4 border-b border-gray-100">
+              <h2 className="text-base font-semibold text-gray-800">Lista de precios</h2>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-200">
+                    <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Categoría</th>
+                    <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Producto / Tamaño</th>
+                    <th className="px-4 py-2 text-right text-xs font-semibold text-gray-500 uppercase">Precio</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {servicios.map(s => (
+                    <tr key={s.id} className="border-b border-gray-50 hover:bg-gray-50">
+                      <td className="px-4 py-2 text-gray-500 text-xs">{s.categoria_nombre}</td>
+                      <td className="px-4 py-2 text-gray-700">{s.nombre}</td>
+                      <td className="px-4 py-2 text-right font-medium text-gray-800">${parseFloat(s.precio).toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
 
