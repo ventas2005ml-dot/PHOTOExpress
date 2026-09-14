@@ -147,7 +147,7 @@ const generarComprobante = async (req, res) => {
       })
 
       // ---- TOTALES ----
-      y += 12
+      y += 85  // ~3cm de espacio
       const tCol = 350
       const tW = 195
       const fila = (label, valor, bold = false) => {
@@ -180,27 +180,21 @@ const generarComprobante = async (req, res) => {
         .text('Detalle de ordenes incluidas:', 50, y)
       y += 12
 
-      // Tabla comandera
+      // Tabla comandera simplificada
       doc.rect(50, y, 495, 14).fill('#e5e7eb')
       doc.fontSize(7).font('Helvetica-Bold').fillColor('#374151')
-        .text('Orden', 53, y + 3, { width: 65 })
-        .text('Papel', 123, y + 3, { width: 75 })
-        .text('Tamanos y cantidades', 203, y + 3, { width: 210 })
-        .text('Archivos', 418, y + 3, { width: 45 })
-        .text('Total', 468, y + 3, { width: 72, align: 'right' })
+        .text('Orden', 53, y + 3, { width: 80 })
+        .text('Tamanos y cantidades', 138, y + 3, { width: 407 })
       y += 14
 
       for (const p of pedidos) {
         const detalleItems = p.items.map(i => `${i.servicio_nombre?.replace(/^Foto /, '')}(${i.cantidad})`).join(', ')
         const bg = pedidos.indexOf(p) % 2 === 0 ? '#f9fafb' : '#fff'
-        const h = Math.max(14, Math.ceil(detalleItems.length / 38) * 10 + 4)
+        const h = Math.max(14, Math.ceil(detalleItems.length / 60) * 10 + 4)
         doc.rect(50, y, 495, h).fill(bg).stroke('#e5e7eb')
         doc.fontSize(7).font('Helvetica').fillColor('#333')
-          .text(p.codigo, 53, y + 3, { width: 65 })
-          .text(p.tipo_papel || '-', 123, y + 3, { width: 75 })
-          .text(detalleItems, 203, y + 3, { width: 210 })
-          .text(String(p.archivos_urls?.length || 0), 418, y + 3, { width: 45 })
-          .text(fmt(p.total), 468, y + 3, { width: 72, align: 'right' })
+          .text(p.codigo, 53, y + 3, { width: 80 })
+          .text(detalleItems, 138, y + 3, { width: 407 })
         y += h
       }
 
