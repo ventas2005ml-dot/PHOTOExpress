@@ -10,34 +10,60 @@ const generarComprobante = async (req, res) => {
     const clienteRes = await db.query('SELECT nombre, email FROM usuarios WHERE id = $1', [cliente_id])
     const cliente = clienteRes.rows[0]
 
+    // Obtener configuracion de pagos
+    const configRes = await db.query('SELECT clave, valor FROM configuracion')
+    const config = {}
+    configRes.rows.forEach(r => { config[r.clave] = r.valor })
+    const descuentoPct = parseFloat(config.descuento_transferencia || 0)
+
+    // Obtener pedidos con items
     const pedidos = []
     for (const pid of pedido_ids) {
-      const p = await db.query(
-        `SELECT p.* FROM pedidos p WHERE p.id = $1`, [pid]
-      )
+      const p = await db.query('SELECT * FROM pedidos WHERE id = $1', [pid])
       if (!p.rows.length) continue
       const items = await db.query(
-        `SELECT pi.cantidad, pi.precio_unitario, pi.subtotal, s.nombre as servicio_nombre
+        `SELECT pi.cantidad, pi.precio_unitario, pi.subtotal, s.nombre as servicio_nombre, s.precio as precio_catalogo
          FROM pedido_items pi LEFT JOIN servicios s ON pi.servicio_id = s.id
          WHERE pi.pedido_id = $1`, [pid]
       )
       pedidos.push({ ...p.rows[0], items: items.rows })
     }
 
+    // Agrupar tamaños entre todos los pedidos
+    const tamanosMap = {}
+    for (const p of pedidos) {
+      for (const item of p.items) {
+        const nombre = item.servicio_nombre?.replace(/^Foto /, '') || item.servicio_nombre
+        if (!tamanosMap[nombre]) {
+          tamanosMap[nombre] = { nombre, cantidad: 0, precio_unitario: parseFloat(item.precio_catalogo || item.precio_unitario || 0) }
+        }
+        tamanosMap[nombre].cantidad += item.cantidad
+      }
+    }
+    const lineas = Object.values(tamanosMap).sort((a, b) => a.nombre.localeCompare(b.nombre))
+
+    // Calcular totales
+    const subtotal = lineas.reduce((sum, l) => sum + l.precio_unitario * l.cantidad, 0)
+    const descuento = subtotal * (descuentoPct / 100)
+    const total = subtotal - descuento
+
+    // Número de comprobante
     const nroRes = await db.query('SELECT COUNT(*) FROM comprobantes')
     const nro = String(parseInt(nroRes.rows[0].count) + 1).padStart(6, '0')
-    const totalGeneral = pedidos.reduce((sum, p) => sum + parseFloat(p.total || 0), 0)
 
+    // Guardar en DB
     await db.query(
-      `INSERT INTO comprobantes (numero, cliente_id, pedido_ids, total, creado_en) VALUES ($1, $2, $3, $4, NOW())`,
-      [nro, cliente_id, pedido_ids, totalGeneral]
+      'INSERT INTO comprobantes (numero, cliente_id, pedido_ids, total, creado_en) VALUES ($1, $2, $3, $4, NOW())',
+      [nro, cliente_id, pedido_ids, total]
     )
 
+    // Marcar pedidos como cobrado
     await db.query(
-      `UPDATE pedidos SET estado = 'cobrado', actualizado_en = NOW() WHERE id = ANY($1::int[])`,
-      [pedido_ids]
+      'UPDATE pedidos SET estado = $1, actualizado_en = NOW() WHERE id = ANY($2::int[])',
+      ['cobrado', pedido_ids]
     )
 
+    // Generar PDF
     const doc = new PDFDocument({ margin: 50, size: 'A4' })
     const chunks = []
     doc.on('data', chunk => chunks.push(chunk))
@@ -45,60 +71,99 @@ const generarComprobante = async (req, res) => {
     await new Promise(resolve => {
       doc.on('end', resolve)
 
-      doc.fontSize(18).font('Helvetica-Bold').text('PHOTOExpress', 50, 50)
-      doc.fontSize(9).font('Helvetica').fillColor('#666')
-        .text('Laboratorio fotografico digital', 50, 72)
-        .text('www.photoexpress.com.ar  |  WhatsApp: 1140396148', 50, 84)
+      const fmt = n => `$${parseFloat(n).toLocaleString('es-AR', { minimumFractionDigits: 2 })}`
 
-      doc.fontSize(14).font('Helvetica-Bold').fillColor('#000')
-        .text(`COMPROBANTE N ${nro}`, 350, 50, { align: 'right' })
-      doc.fontSize(9).font('Helvetica').fillColor('#666')
-        .text(`Fecha: ${new Date().toLocaleDateString('es-AR')}`, 350, 72, { align: 'right' })
+      // Titulo comprobante
+      doc.fontSize(14).font('Helvetica-Bold')
+        .text(`Comprobante A ${String(nro).padStart(10, '0')}`, { align: 'center' })
+      doc.fontSize(9).font('Helvetica').fillColor('#444')
+        .text(`${new Date().toLocaleDateString('es-AR')} ${new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}`, { align: 'center' })
+      doc.moveDown(0.5)
 
-      doc.moveTo(50, 110).lineTo(545, 110).strokeColor('#ddd').stroke()
+      // Datos laboratorio
+      doc.fontSize(9).font('Helvetica').fillColor('#000')
+        .text('PHOTOExpress')
+        .text(`Alias: ${config.alias || 'photoexpress'}`)
+        .text(`Titular: ${config.titular || 'Jose Luis Fortuna'}`)
+        .text(`WhatsApp: ${config.whatsapp_numero || '1140396148'}`)
+        .text('www.photoexpress.com.ar')
+      doc.moveDown(0.3)
 
-      doc.fontSize(10).font('Helvetica-Bold').fillColor('#000').text('Cliente:', 50, 125)
-      doc.fontSize(10).font('Helvetica').text(cliente?.nombre || '-', 110, 125).text(cliente?.email || '-', 110, 139)
+      // Datos cliente
+      doc.text(`Cliente: ${cliente?.nombre || '-'}`)
+      doc.text(`Email: ${cliente?.email || '-'}`)
+      doc.moveDown(0.5)
 
-      let y = 168
-      const colWidths = [85, 85, 190, 60, 75]
-      const headers = ['Nro. Orden', 'Papel', 'Tamanos y cantidades', 'Archivos', 'Total']
+      // Línea separadora
+      doc.moveTo(50, doc.y).lineTo(545, doc.y).strokeColor('#999').stroke()
+      doc.moveDown(0.3)
 
-      doc.rect(50, y, 495, 18).fill('#f3f4f6')
-      doc.fontSize(8).font('Helvetica-Bold').fillColor('#374151')
-      let x = 50
-      headers.forEach((h, i) => { doc.text(h, x + 3, y + 5, { width: colWidths[i] - 3 }); x += colWidths[i] })
-      y += 18
+      // Header tabla
+      const cols = { codigo: 50, cantidad: 90, desc: 150, punit: 340, descto: 430, total: 490 }
+      const y0 = doc.y
+      doc.fontSize(9).font('Helvetica-Bold')
+        .text('Nro', cols.codigo, y0, { width: 35 })
+        .text('Cantidad', cols.cantidad, y0, { width: 55 })
+        .text('Descripcion', cols.desc, y0, { width: 180 })
+        .text('P.Unit', cols.punit, y0, { width: 85 })
+        .text('Descuento', cols.descto, y0, { width: 55 })
+        .text('Total', cols.total, y0, { width: 55, align: 'right' })
+      doc.moveDown(0.3)
+      doc.moveTo(50, doc.y).lineTo(545, doc.y).strokeColor('#999').stroke()
+      doc.moveDown(0.2)
 
-      for (const p of pedidos) {
-        const tamanosStr = p.items.map(i => `${i.servicio_nombre?.replace(/^Foto /, '')} x${i.cantidad}`).join(', ')
-        const rowH = Math.max(20, Math.ceil(tamanosStr.length / 32) * 11 + 8)
-        doc.rect(50, y, 495, rowH).stroke('#e5e7eb')
-        doc.fontSize(8).font('Helvetica').fillColor('#111')
-        doc.text(p.codigo, 53, y + 5, { width: 82 })
-        doc.text(p.tipo_papel || '-', 138, y + 5, { width: 82 })
-        doc.text(tamanosStr, 223, y + 5, { width: 187 })
-        doc.text(String(p.archivos_urls?.length || 0), 413, y + 5, { width: 57 })
-        doc.text(`$${parseFloat(p.total || 0).toLocaleString('es-AR')}`, 473, y + 5, { width: 67, align: 'right' })
-        y += rowH
+      // Filas
+      lineas.forEach((l, i) => {
+        const subtotalLinea = l.precio_unitario * l.cantidad
+        const desctoLinea = subtotalLinea * (descuentoPct / 100)
+        const totalLinea = subtotalLinea - desctoLinea
+        const y = doc.y
+        doc.fontSize(9).font('Helvetica').fillColor('#000')
+          .text(String(i + 1).padStart(2, '0'), cols.codigo, y, { width: 35 })
+          .text(String(l.cantidad), cols.cantidad, y, { width: 55 })
+          .text(l.nombre, cols.desc, y, { width: 180 })
+          .text(fmt(l.precio_unitario), cols.punit, y, { width: 85 })
+          .text(descuentoPct > 0 ? `${descuentoPct.toFixed(0)}%` : '-', cols.descto, y, { width: 55 })
+          .text(fmt(totalLinea), cols.total, y, { width: 55, align: 'right' })
+        doc.moveDown(0.4)
+      })
+
+      doc.moveDown(0.3)
+      doc.moveTo(50, doc.y).lineTo(545, doc.y).strokeColor('#999').stroke()
+      doc.moveDown(0.5)
+
+      // Totales
+      const rightX = 380
+      doc.fontSize(9).font('Helvetica')
+        .text(`Subtotal (1) $`, rightX, doc.y, { width: 100 })
+        .text(fmt(subtotal), rightX + 110, doc.y - doc.currentLineHeight(), { width: 55, align: 'right' })
+      doc.moveDown(0.3)
+
+      if (descuentoPct > 0) {
+        doc.text(`Descuento $`, rightX, doc.y, { width: 100 })
+          .text(fmt(descuento), rightX + 110, doc.y - doc.currentLineHeight(), { width: 55, align: 'right' })
+        doc.moveDown(0.3)
+        doc.text(`Subtotal (2) $`, rightX, doc.y, { width: 100 })
+          .text(fmt(subtotal - descuento), rightX + 110, doc.y - doc.currentLineHeight(), { width: 55, align: 'right' })
+        doc.moveDown(0.3)
       }
 
-      y += 10
-      doc.rect(370, y, 175, 22).fill('#1d4ed8')
-      doc.fontSize(10).font('Helvetica-Bold').fillColor('#fff')
-        .text('TOTAL:', 375, y + 6)
-        .text(`$${totalGeneral.toLocaleString('es-AR')}`, 375, y + 6, { width: 165, align: 'right' })
+      doc.fontSize(10).font('Helvetica-Bold')
+        .text(`TOTAL $`, rightX, doc.y, { width: 100 })
+        .text(fmt(total), rightX + 110, doc.y - doc.currentLineHeight(), { width: 55, align: 'right' })
 
-      y += 45
-      doc.moveTo(50, y).lineTo(545, y).strokeColor('#ddd').stroke()
-      y += 10
-      doc.fontSize(8).font('Helvetica-Bold').fillColor('#374151').text('DETALLE DE ORDENES INCLUIDAS', 50, y)
-      y += 14
+      doc.moveDown(1)
+      doc.moveTo(50, doc.y).lineTo(545, doc.y).strokeColor('#ddd').stroke()
+      doc.moveDown(0.5)
 
+      // Pie: comandera con detalle de pedidos
+      doc.fontSize(8).font('Helvetica-Bold').text('Detalle de ordenes incluidas:')
+      doc.moveDown(0.2)
       for (const p of pedidos) {
-        const linea = `${p.codigo}  ${p.tipo_papel || '-'}  ${p.items.map(i => `${i.servicio_nombre?.replace(/^Foto /, '')}(${i.cantidad})`).join(', ')}  ${p.archivos_urls?.length || 0} archivos  $${parseFloat(p.total || 0).toLocaleString('es-AR')}`
-        doc.fontSize(7).font('Helvetica').fillColor('#555').text(`• ${linea}`, 50, y, { width: 495 })
-        y += 11
+        const detalleItems = p.items.map(i => `${i.servicio_nombre?.replace(/^Foto /, '')}(${i.cantidad})`).join(', ')
+        doc.fontSize(7).font('Helvetica').fillColor('#444')
+          .text(`${p.codigo}  ${p.tipo_papel || '-'}  ${detalleItems}  ${p.archivos_urls?.length || 0} archivos  ${fmt(p.total)}`)
+        doc.moveDown(0.2)
       }
 
       doc.end()
