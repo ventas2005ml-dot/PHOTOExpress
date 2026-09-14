@@ -99,10 +99,10 @@ const generarComprobante = async (req, res) => {
       doc.moveDown(0.3)
 
       // Header tabla
-      const cols = { codigo: 50, cantidad: 90, desc: 150, punit: 340, descto: 430, total: 490 }
+      const cols = { num: 50, cantidad: 90, desc: 150, punit: 340, descto: 430, total: 490 }
       const y0 = doc.y
       doc.fontSize(9).font('Helvetica-Bold')
-        .text('Nro', cols.codigo, y0, { width: 35 })
+        .text('Nro', cols.num, y0, { width: 35 })
         .text('Cantidad', cols.cantidad, y0, { width: 55 })
         .text('Descripcion', cols.desc, y0, { width: 180 })
         .text('P.Unit', cols.punit, y0, { width: 85 })
@@ -112,14 +112,14 @@ const generarComprobante = async (req, res) => {
       doc.moveTo(50, doc.y).lineTo(545, doc.y).strokeColor('#999').stroke()
       doc.moveDown(0.2)
 
-      // Filas
+      // Filas — tamaños agrupados
       lineas.forEach((l, i) => {
         const subtotalLinea = l.precio_unitario * l.cantidad
         const desctoLinea = subtotalLinea * (descuentoPct / 100)
         const totalLinea = subtotalLinea - desctoLinea
         const y = doc.y
         doc.fontSize(9).font('Helvetica').fillColor('#000')
-          .text(String(i + 1).padStart(2, '0'), cols.codigo, y, { width: 35 })
+          .text(String(i + 1).padStart(2, '0'), cols.num, y, { width: 35 })
           .text(String(l.cantidad), cols.cantidad, y, { width: 55 })
           .text(l.nombre, cols.desc, y, { width: 180 })
           .text(fmt(l.precio_unitario), cols.punit, y, { width: 85 })
