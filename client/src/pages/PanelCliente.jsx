@@ -195,8 +195,6 @@ export default function PanelCliente({ usuario, onLogout }) {
           <button onClick={onLogout} className="text-sm text-blue-200 hover:text-white">Cerrar sesión</button>
         </div>
       </div>
-        </div>
-      </div>
 
       <div className="w-full px-4 py-4">
 
