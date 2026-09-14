@@ -15,8 +15,7 @@ const subirComprobante = async (req, res) => {
     if (!req.file) return res.status(400).json({ error: 'No se recibio archivo' })
 
     const codigo = req.body.codigo || null
-    const ext = req.file.originalname.split('.').pop()
-    const filename = `${Date.now()}_${req.file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')}`
+    const filename = req.file.originalname
 
     let folder = BASE_FOLDER
     if (codigo) {

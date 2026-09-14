@@ -24,6 +24,7 @@ export default function PanelCliente({ usuario, onLogout }) {
   const [filtros, setFiltros] = useState({ fecha: '', codigo: '', archivos: '', copias: '', medidas: '', estado: '', fechaFin: '', notas: '' })
   const [ordenCol, setOrdenCol] = useState('creado_en')
   const [ordenDir, setOrdenDir] = useState('desc')
+  const [pedidoModal, setPedidoModal] = useState(null)
 
   // Formulario de orden actual
   const [tipoPapel, setTipoPapel] = useState('')
@@ -273,7 +274,7 @@ export default function PanelCliente({ usuario, onLogout }) {
                         return (
                           <tr key={p.id} className="hover:bg-blue-50">
                             <td className="px-3 py-2 text-gray-600 whitespace-nowrap border border-gray-200">{new Date(p.creado_en).toLocaleDateString()}</td>
-                            <td className="px-3 py-2 text-blue-600 font-medium whitespace-nowrap border border-gray-200">{p.codigo}</td>
+                            <td className="px-3 py-2 text-blue-600 font-medium whitespace-nowrap border border-gray-200 cursor-pointer hover:underline" onClick={() => setPedidoModal(p)}>{p.codigo}</td>
                             <td className="px-3 py-2 text-gray-700 whitespace-nowrap border border-gray-200">{p.tipo_papel || '—'}</td>
                             <td className="px-3 py-2 text-center text-gray-700 border border-gray-200">{p.archivos_urls?.length || 0}</td>
                             <td className="px-3 py-2 text-center text-gray-700 border border-gray-200">{totalCopias || '—'}</td>
@@ -544,6 +545,95 @@ export default function PanelCliente({ usuario, onLogout }) {
           </div>
         )}
       </div>
+
+      {/* Modal detalle pedido */}
+      {pedidoModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
+          <div className="bg-white rounded-xl w-full max-w-lg shadow-xl overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <h3 className="text-sm font-semibold text-gray-800">Pedido {pedidoModal.codigo}</h3>
+              <button onClick={() => setPedidoModal(null)} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <p className="text-xs text-gray-500 mb-0.5">Fecha</p>
+                  <p className="text-gray-800">{new Date(pedidoModal.creado_en).toLocaleDateString()}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 mb-0.5">Tipo de papel</p>
+                  <p className="text-gray-800 font-medium">{pedidoModal.tipo_papel || '—'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 mb-0.5">Estado</p>
+                  <span className={'text-xs px-2 py-1 rounded-full font-medium ' + ({
+                    ingresado: 'bg-gray-100 text-gray-600',
+                    facturado: 'bg-yellow-100 text-yellow-700',
+                    cobrado: 'bg-blue-100 text-blue-700',
+                    en_proceso: 'bg-orange-100 text-orange-700',
+                    finalizado: 'bg-green-100 text-green-700',
+                  }[pedidoModal.estado] || 'bg-gray-100 text-gray-500')}>
+                    {pedidoModal.estado?.replace('_', ' ')}
+                  </span>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 mb-0.5">Total</p>
+                  <p className="text-gray-800 font-semibold">${parseFloat(pedidoModal.total || 0).toLocaleString()}</p>
+                </div>
+              </div>
+
+              {pedidoModal.items?.length > 0 && (
+                <div>
+                  <p className="text-xs text-gray-500 mb-2 font-medium uppercase">Composición</p>
+                  <table className="w-full text-sm border-collapse">
+                    <thead>
+                      <tr className="bg-gray-50">
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 border border-gray-200">Tamaño</th>
+                        <th className="px-3 py-2 text-center text-xs font-semibold text-gray-500 border border-gray-200">Cantidad</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pedidoModal.items.map((item, i) => (
+                        <tr key={i}>
+                          <td className="px-3 py-2 text-gray-700 border border-gray-200">{item.servicio_nombre?.replace(/^Foto /, '')}</td>
+                          <td className="px-3 py-2 text-center text-gray-700 border border-gray-200">{item.cantidad}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {pedidoModal.archivos_urls?.length > 0 && (
+                <div>
+                  <p className="text-xs text-gray-500 mb-2 font-medium uppercase">Archivos ({pedidoModal.archivos_urls.length})</p>
+                  <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-48 overflow-y-auto">
+                    {pedidoModal.archivos_urls.map((url, i) => {
+                      const nombre = url.split('/').pop()
+                      return (
+                        <div key={i} className="px-3 py-2 text-sm text-gray-600 flex items-center gap-2">
+                          <span className="text-gray-400 text-xs">{i + 1}.</span>
+                          <span>{nombre}</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {pedidoModal.notas && (
+                <div>
+                  <p className="text-xs text-gray-500 mb-1">Observaciones</p>
+                  <p className="text-sm text-gray-700 bg-gray-50 rounded-lg p-3">{pedidoModal.notas}</p>
+                </div>
+              )}
+            </div>
+            <div className="px-5 py-3 border-t border-gray-100 bg-gray-50 flex justify-end">
+              <button onClick={() => setPedidoModal(null)} className="text-sm text-gray-500 hover:text-gray-700 px-4 py-2">Cerrar</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal perfil */}
       {modalPerfil && (
