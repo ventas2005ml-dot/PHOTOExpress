@@ -172,16 +172,29 @@ export default function PanelCliente({ usuario, onLogout }) {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="bg-blue-600 border-b border-blue-700 px-6 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <span className="text-xl">📷</span>
-          <span className="font-semibold text-white">PHOTOExpress</span>
+      <div className="bg-blue-600 border-b border-blue-700 px-4 py-2 flex items-center justify-between">
+        <div className="flex items-center gap-6">
+          <img src="/logo.jpg" alt="PHOTOExpress" className="h-10 w-10 rounded-full object-cover"/>
+          <nav className="flex items-center gap-5">
+            <button onClick={() => setVista('dashboard')} className="text-sm text-blue-100 hover:text-white font-medium">Inicio</button>
+            <button onClick={() => setVista('dashboard')} className="text-sm text-blue-100 hover:text-white">Mis pedidos</button>
+            <button onClick={() => setVista('precios')} className="text-sm text-blue-100 hover:text-white">Lista de precios</button>
+            <button className="text-sm text-blue-100 hover:text-white">Contacto</button>
+          </nav>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           <span className="text-sm text-blue-100">{usuario.nombre}</span>
-          <button onClick={() => setVista('dashboard')} className="text-sm text-blue-100 hover:text-white">Mis pedidos</button>
-          <button onClick={() => setVista('precios')} className="text-sm text-blue-100 hover:text-white">Precio</button>
           <button onClick={() => { setModalPerfil(true); setPerfilMsg(''); setPerfilErr('') }}
+            className="w-8 h-8 rounded-full bg-white text-blue-600 text-sm font-semibold flex items-center justify-center hover:bg-blue-50" title="Mi perfil">
+            {usuario.nombre.charAt(0).toUpperCase()}
+          </button>
+          <button onClick={() => { resetOrden(); setOrdenes([]); setPantalla(1); setVista('nuevo') }}
+            className="bg-white text-blue-600 px-4 py-1.5 rounded-lg text-sm font-medium hover:bg-blue-50">
+            + Nuevo pedido
+          </button>
+          <button onClick={onLogout} className="text-sm text-blue-200 hover:text-white">Cerrar sesión</button>
+        </div>
+      </div>
             className="w-8 h-8 rounded-full bg-white text-blue-600 text-sm font-semibold flex items-center justify-center hover:bg-blue-50" title="Mi perfil">
             {usuario.nombre.charAt(0).toUpperCase()}
           </button>
@@ -212,6 +225,7 @@ export default function PanelCliente({ usuario, onLogout }) {
                         { key: 'estado', label: 'Estado' },
                         { key: 'finalizado_en', label: 'Fecha Finalización' },
                         { key: 'notas', label: 'Comentarios' },
+                        { key: 'total', label: 'Total' },
                       ].map(col => (
                         <th key={col.key} className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase cursor-pointer select-none whitespace-nowrap border border-gray-200"
                           onClick={() => { setOrdenCol(col.key); setOrdenDir(prev => ordenCol === col.key && prev === 'asc' ? 'desc' : 'asc') }}>
@@ -220,7 +234,7 @@ export default function PanelCliente({ usuario, onLogout }) {
                       ))}
                     </tr>
                     <tr className="bg-white">
-                      {['fecha', 'codigo', 'papel', 'archivos', 'copias', 'medidas', 'estado', 'fechaFin', 'notas'].map(k => (
+                      {['fecha', 'codigo', 'papel', 'archivos', 'copias', 'medidas', 'estado', 'fechaFin', 'notas', 'total'].map(k => (
                         <th key={k} className="px-2 py-1 border border-gray-200">
                           <input value={filtros[k] || ''} onChange={e => setFiltros(prev => ({ ...prev, [k]: e.target.value }))}
                             className="w-full border border-gray-200 rounded px-2 py-1 text-xs font-normal focus:outline-none focus:ring-1 focus:ring-blue-400" placeholder=""/>
@@ -272,11 +286,12 @@ export default function PanelCliente({ usuario, onLogout }) {
                               {p.finalizado_en ? new Date(p.finalizado_en).toLocaleDateString() : '—'}
                             </td>
                             <td className="px-3 py-2 text-gray-500 text-xs border border-gray-200" style={{maxWidth:'200px'}}>{p.notas || '—'}</td>
+                            <td className="px-3 py-2 text-right font-medium text-gray-800 whitespace-nowrap border border-gray-200">${parseFloat(p.total || 0).toLocaleString()}</td>
                           </tr>
                         )
                       })}
                     {pedidos.length === 0 && (
-                      <tr><td colSpan="9" className="px-3 py-8 text-center text-gray-400 border border-gray-200">No tenés pedidos todavía</td></tr>
+                      <tr><td colSpan="10" className="px-3 py-8 text-center text-gray-400 border border-gray-200">No tenés pedidos todavía</td></tr>
                     )}
                   </tbody>
                 </table>
