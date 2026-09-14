@@ -195,14 +195,6 @@ export default function PanelCliente({ usuario, onLogout }) {
           <button onClick={onLogout} className="text-sm text-blue-200 hover:text-white">Cerrar sesión</button>
         </div>
       </div>
-            className="w-8 h-8 rounded-full bg-white text-blue-600 text-sm font-semibold flex items-center justify-center hover:bg-blue-50" title="Mi perfil">
-            {usuario.nombre.charAt(0).toUpperCase()}
-          </button>
-          <button onClick={() => { resetOrden(); setOrdenes([]); setPantalla(1); setVista('nuevo') }}
-            className="bg-white text-blue-600 px-4 py-1.5 rounded-lg text-sm font-medium hover:bg-blue-50">
-            + Nuevo pedido
-          </button>
-          <button onClick={onLogout} className="text-sm text-blue-200 hover:text-white">Salir</button>
         </div>
       </div>
 
