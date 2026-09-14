@@ -4,7 +4,7 @@ const { enviarMailComprobante } = require('../../config/mailer')
 
 const generarComprobante = async (req, res) => {
   try {
-    const { pedido_ids, cliente_id } = req.body
+    const { pedido_ids, cliente_id, monto_recibido } = req.body
     if (!pedido_ids?.length) return res.status(400).json({ error: 'No se indicaron pedidos' })
 
     const clienteRes = await db.query('SELECT nombre, email FROM usuarios WHERE id = $1', [cliente_id])
@@ -42,14 +42,46 @@ const generarComprobante = async (req, res) => {
 
     const subtotal = lineas.reduce((sum, l) => sum + l.precio_unitario * l.cantidad, 0)
     const descuento = subtotal * (descuentoPct / 100)
-    const total = subtotal - descuento
+    const totalComprobante = subtotal - descuento
+
+    // Saldo anterior del cliente
+    const saldoRes = await db.query(
+      'SELECT saldo FROM saldos_clientes WHERE cliente_id = $1', [cliente_id]
+    )
+    const saldoAnterior = saldoRes.rows.length ? parseFloat(saldoRes.rows[0].saldo) : 0
+
+    // Calcular saldo a favor y deuda
+    const deudaReal = totalComprobante - saldoAnterior // deuda ajustada por saldo previo
+    let saldoAFavor = 0
+    let deuda = 0
+    let nuevoSaldo = 0
+
+    if (monto_recibido !== null && monto_recibido !== undefined) {
+      const pagado = parseFloat(monto_recibido)
+      const diferencia = pagado - deudaReal
+      if (diferencia > 0) {
+        saldoAFavor = diferencia
+        nuevoSaldo = diferencia
+      } else if (diferencia < 0) {
+        deuda = Math.abs(diferencia)
+        nuevoSaldo = diferencia // negativo = deuda
+      }
+    }
+
+    // Actualizar saldo del cliente
+    await db.query(
+      `INSERT INTO saldos_clientes (cliente_id, saldo, actualizado_en)
+       VALUES ($1, $2, NOW())
+       ON CONFLICT (cliente_id) DO UPDATE SET saldo = $2, actualizado_en = NOW()`,
+      [cliente_id, nuevoSaldo]
+    )
 
     const nroRes = await db.query('SELECT COUNT(*) FROM comprobantes')
     const nro = String(parseInt(nroRes.rows[0].count) + 1).padStart(6, '0')
 
     await db.query(
       'INSERT INTO comprobantes (numero, cliente_id, pedido_ids, total, creado_en) VALUES ($1, $2, $3, $4, NOW())',
-      [nro, cliente_id, pedido_ids, total]
+      [nro, cliente_id, pedido_ids, totalComprobante]
     )
     await db.query(
       'UPDATE pedidos SET estado = $1, actualizado_en = NOW() WHERE id = ANY($2::int[])',
@@ -66,7 +98,6 @@ const generarComprobante = async (req, res) => {
       doc.on('end', resolve)
 
       // ---- HEADER ----
-      // Logo/nombre laboratorio (izquierda)
       doc.fontSize(20).font('Helvetica-Bold').fillColor('#000').text('PHOTOExpress', 50, 50)
       doc.fontSize(9).font('Helvetica').fillColor('#555')
         .text('Laboratorio fotografico digital', 50, 74)
@@ -74,35 +105,30 @@ const generarComprobante = async (req, res) => {
         .text(`WhatsApp: ${config.whatsapp_numero || '1140396148'}`, 50, 98)
         .text(`Alias: ${config.alias || 'photoexpress'}  |  Titular: ${config.titular || 'Jose Luis Fortuna'}`, 50, 110)
 
-      // Número y fecha (derecha)
       doc.fontSize(13).font('Helvetica-Bold').fillColor('#000')
         .text(`COMPROBANTE N ${nro}`, 300, 50, { width: 245, align: 'right' })
       doc.fontSize(9).font('Helvetica').fillColor('#555')
         .text(`Fecha: ${new Date().toLocaleDateString('es-AR')}`, 300, 70, { width: 245, align: 'right' })
 
-      // Línea separadora
       doc.moveTo(50, 128).lineTo(545, 128).strokeColor('#aaa').lineWidth(0.5).stroke()
 
-      // Datos cliente
       doc.fontSize(9).font('Helvetica-Bold').fillColor('#000').text('Cliente:', 50, 138)
       doc.fontSize(9).font('Helvetica').text(cliente?.nombre || '-', 110, 138)
-      doc.text(cliente?.email || '-', 110, 150)
+        .text(cliente?.email || '-', 110, 150)
 
       // ---- TABLA ----
       const tY = 175
       const C = { nro: 50, cant: 95, desc: 155, punit: 340, descto: 430, total: 490 }
       const W = { nro: 40, cant: 55, desc: 180, punit: 85, descto: 55, total: 55 }
 
-      // Header tabla
       doc.rect(50, tY, 495, 18).fill('#e5e7eb')
       doc.fontSize(8).font('Helvetica-Bold').fillColor('#374151')
-      const hY = tY + 5
-      doc.text('Nro', C.nro, hY, { width: W.nro })
-        .text('Cantidad', C.cant, hY, { width: W.cant })
-        .text('Descripcion', C.desc, hY, { width: W.desc })
-        .text('P.Unit', C.punit, hY, { width: W.punit })
-        .text('Descuento', C.descto, hY, { width: W.descto })
-        .text('Total', C.total, hY, { width: W.total, align: 'right' })
+      doc.text('Nro', C.nro, tY + 5, { width: W.nro })
+        .text('Cantidad', C.cant, tY + 5, { width: W.cant })
+        .text('Descripcion', C.desc, tY + 5, { width: W.desc })
+        .text('P.Unit', C.punit, tY + 5, { width: W.punit })
+        .text('Descuento', C.descto, tY + 5, { width: W.descto })
+        .text('Total', C.total, tY + 5, { width: W.total, align: 'right' })
 
       let y = tY + 18
       lineas.forEach((l, i) => {
@@ -120,40 +146,46 @@ const generarComprobante = async (req, res) => {
         y += 16
       })
 
-      // Totales
-      y += 8
-      const tCol = 360
-      const tW = 180
-      doc.fontSize(8).font('Helvetica').fillColor('#555')
-        .text('Subtotal (1) $', tCol, y, { width: tW - 60 })
-        .text(fmt(subtotal), tCol + tW - 60, y, { width: 55, align: 'right' })
-      y += 13
-      if (descuentoPct > 0) {
-        doc.text('Descuento $', tCol, y, { width: tW - 60 })
-          .text(fmt(descuento), tCol + tW - 60, y, { width: 55, align: 'right' })
-        y += 13
-        doc.text('Subtotal (2) $', tCol, y, { width: tW - 60 })
-          .text(fmt(subtotal - descuento), tCol + tW - 60, y, { width: 55, align: 'right' })
+      // ---- TOTALES ----
+      y += 12
+      const tCol = 350
+      const tW = 195
+      const fila = (label, valor, bold = false) => {
+        doc.fontSize(8)[bold ? 'font' : 'font'](bold ? 'Helvetica-Bold' : 'Helvetica').fillColor(bold ? '#000' : '#555')
+          .text(label, tCol, y, { width: tW - 65 })
+          .text(valor, tCol + tW - 65, y, { width: 60, align: 'right' })
         y += 13
       }
+
+      fila('Subtotal (1) $', fmt(subtotal))
+      if (descuentoPct > 0) {
+        fila('Descuento $', fmt(descuento))
+        fila('Subtotal (2) $', fmt(subtotal - descuento))
+      }
+      if (saldoAnterior > 0) fila('Saldo a favor anterior $', fmt(saldoAnterior))
+      if (saldoAnterior < 0) fila('Deuda anterior $', fmt(Math.abs(saldoAnterior)))
+      fila('Saldo a favor $', saldoAFavor > 0 ? fmt(saldoAFavor) : '-')
+      fila('Deuda $', deuda > 0 ? fmt(deuda) : '-')
       doc.fontSize(9).font('Helvetica-Bold').fillColor('#000')
-        .text('TOTAL $', tCol, y, { width: tW - 60 })
-        .text(fmt(total), tCol + tW - 60, y, { width: 55, align: 'right' })
+        .text('TOTAL $', tCol, y, { width: tW - 65 })
+        .text(fmt(totalComprobante), tCol + tW - 65, y, { width: 60, align: 'right' })
+      y += 18
 
       // ---- PIE: COMANDERA ----
-      y += 28
+      y += 15
       doc.moveTo(50, y).lineTo(545, y).strokeColor('#aaa').lineWidth(0.5).stroke()
-      y += 8
+      y += 10
+
       doc.fontSize(8).font('Helvetica-Bold').fillColor('#374151')
         .text('Detalle de ordenes incluidas:', 50, y)
       y += 12
 
-      // Tabla de comandera
+      // Tabla comandera
       doc.rect(50, y, 495, 14).fill('#e5e7eb')
       doc.fontSize(7).font('Helvetica-Bold').fillColor('#374151')
-        .text('Orden', 53, y + 3, { width: 60 })
-        .text('Papel', 118, y + 3, { width: 70 })
-        .text('Tamanos y cantidades', 193, y + 3, { width: 220 })
+        .text('Orden', 53, y + 3, { width: 65 })
+        .text('Papel', 123, y + 3, { width: 75 })
+        .text('Tamanos y cantidades', 203, y + 3, { width: 210 })
         .text('Archivos', 418, y + 3, { width: 45 })
         .text('Total', 468, y + 3, { width: 72, align: 'right' })
       y += 14
@@ -161,12 +193,12 @@ const generarComprobante = async (req, res) => {
       for (const p of pedidos) {
         const detalleItems = p.items.map(i => `${i.servicio_nombre?.replace(/^Foto /, '')}(${i.cantidad})`).join(', ')
         const bg = pedidos.indexOf(p) % 2 === 0 ? '#f9fafb' : '#fff'
-        const h = Math.max(14, Math.ceil(detalleItems.length / 40) * 10 + 4)
+        const h = Math.max(14, Math.ceil(detalleItems.length / 38) * 10 + 4)
         doc.rect(50, y, 495, h).fill(bg).stroke('#e5e7eb')
         doc.fontSize(7).font('Helvetica').fillColor('#333')
-          .text(p.codigo, 53, y + 3, { width: 60 })
-          .text(p.tipo_papel || '-', 118, y + 3, { width: 70 })
-          .text(detalleItems, 193, y + 3, { width: 220 })
+          .text(p.codigo, 53, y + 3, { width: 65 })
+          .text(p.tipo_papel || '-', 123, y + 3, { width: 75 })
+          .text(detalleItems, 203, y + 3, { width: 210 })
           .text(String(p.archivos_urls?.length || 0), 418, y + 3, { width: 45 })
           .text(fmt(p.total), 468, y + 3, { width: 72, align: 'right' })
         y += h

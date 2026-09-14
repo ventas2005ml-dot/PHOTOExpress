@@ -29,7 +29,11 @@ export default function Admin({ usuario, onLogout }) {
   const [ordenDirAdmin, setOrdenDirAdmin] = useState('desc')
   const [clientesActivos, setClientesActivos] = useState([])
   const [clienteSeleccionado, setClienteSeleccionado] = useState(null)
-  const [modalComprobante, setModalComprobante] = useState(null) // { cliente_id, cliente_nombre, pedidos[] }
+  const [modalComprobante, setModalComprobante] = useState(null)
+  const [pedidosComprobante, setPedidosComprobante] = useState([])
+  const [seleccionados, setSeleccionados] = useState([])
+  const [montoRecibido, setMontoRecibido] = useState('')
+  const [generandoPDF, setGenerandoPDF] = useState(false)
   const [pedidosComprobante, setPedidosComprobante] = useState([])
   const [seleccionados, setSeleccionados] = useState([])
   const [generandoPDF, setGenerandoPDF] = useState(false)
@@ -108,6 +112,7 @@ export default function Admin({ usuario, onLogout }) {
     const data = await res.json()
     setPedidosComprobante(Array.isArray(data) ? data : [])
     setSeleccionados(Array.isArray(data) ? data.map(p => p.id) : [])
+    setMontoRecibido('')
     setModalComprobante({ cliente_id: clienteId, cliente_nombre: clienteNombre })
   }
 
@@ -116,7 +121,7 @@ export default function Admin({ usuario, onLogout }) {
     setGenerandoPDF(true)
     const res = await fetch('/api/comprobantes/generar', {
       method: 'POST', headers,
-      body: JSON.stringify({ pedido_ids: seleccionados, cliente_id: modalComprobante.cliente_id })
+      body: JSON.stringify({ pedido_ids: seleccionados, cliente_id: modalComprobante.cliente_id, monto_recibido: parseFloat(montoRecibido) || null })
     })
     setGenerandoPDF(false)
     if (!res.ok) { setMensaje('Error al generar comprobante'); return }
@@ -841,9 +846,16 @@ export default function Admin({ usuario, onLogout }) {
                     ))}
                   </div>
                   <div className="flex justify-between items-center border-t border-gray-100 pt-3">
-                    <span className="text-sm font-semibold text-gray-700">
-                      Total: ${pedidosComprobante.filter(p => seleccionados.includes(p.id)).reduce((sum, p) => sum + parseFloat(p.total || 0), 0).toLocaleString()}
-                    </span>
+                    <div className="space-y-1">
+                      <span className="text-sm font-semibold text-gray-700">
+                        Total: ${pedidosComprobante.filter(p => seleccionados.includes(p.id)).reduce((sum, p) => sum + parseFloat(p.total || 0), 0).toLocaleString()}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <label className="text-xs text-gray-500">Monto recibido:</label>
+                        <input type="number" value={montoRecibido} onChange={e => setMontoRecibido(e.target.value)}
+                          placeholder="0" className="border border-gray-200 rounded px-2 py-1 text-sm w-32 focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+                      </div>
+                    </div>
                     <div className="flex gap-3">
                       <button onClick={() => setModalComprobante(null)} className="text-sm text-gray-400 hover:text-gray-600 px-4 py-2">Cancelar</button>
                       <button onClick={generarPDF} disabled={generandoPDF || !seleccionados.length}
