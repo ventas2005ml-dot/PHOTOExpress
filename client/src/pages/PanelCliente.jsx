@@ -182,6 +182,23 @@ export default function PanelCliente({ usuario, onLogout }) {
             <button className="text-sm text-blue-100 hover:text-white">Contacto</button>
           </nav>
         </div>
+
+        {/* Centro: resumen pedidos ingresados */}
+        <div className="flex items-center gap-4">
+          <span className="text-xs text-blue-200 font-medium uppercase tracking-wide">Pedidos recibidos</span>
+          <div className="bg-white rounded px-3 py-1 text-center min-w-[48px]">
+            <span className="text-base font-bold text-gray-900">
+              {pedidos.filter(p => p.estado === 'ingresado').length}
+            </span>
+          </div>
+          <span className="text-xs text-blue-200 font-medium uppercase tracking-wide">Importe a abonar</span>
+          <div className="bg-white rounded px-3 py-1 text-center min-w-[80px]">
+            <span className="text-base font-bold text-gray-900">
+              ${pedidos.filter(p => p.estado === 'ingresado').reduce((sum, p) => sum + parseFloat(p.total || 0), 0).toLocaleString()}
+            </span>
+          </div>
+        </div>
+
         <div className="flex items-center gap-3">
           <span className="text-sm text-blue-100">{usuario.nombre}</span>
           <button onClick={() => { setModalPerfil(true); setPerfilMsg(''); setPerfilErr('') }}
