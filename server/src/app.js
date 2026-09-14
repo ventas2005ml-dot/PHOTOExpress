@@ -9,6 +9,7 @@ const pagosRoutes = require('./modules/pagos/pagos.routes')
 const usuariosRoutes = require('./modules/usuarios/usuarios.routes')
 const adminRoutes = require('./modules/admin/admin.routes')
 const uploadRoutes = require('./modules/upload/upload.routes')
+const comprobantesRoutes = require('./modules/comprobantes/comprobantes.routes')
 const { limpiezaAutomatica } = require('./modules/retencion/retencion')
 
 const app = express()
@@ -23,6 +24,7 @@ app.use('/api/pagos', pagosRoutes)
 app.use('/api/usuarios', usuariosRoutes)
 app.use('/api/admin', adminRoutes)
 app.use('/api/upload', uploadRoutes)
+app.use('/api/comprobantes', comprobantesRoutes)
 
 // Endpoint manual de limpieza
 app.post('/api/admin/limpiar-material', async (req, res) => {

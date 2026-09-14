@@ -68,4 +68,14 @@ const enviarMailPedidoListo = async ({ nombre, email, codigo }) => {
   })
 }
 
-module.exports = { enviarMailPedidoRecibido, enviarMailPedidoListo }
+const enviarMailComprobante = async ({ nombre, email, nro, pdfBuffer }) => {
+  await transporter.sendMail({
+    from: `"PHOTOExpress" <${process.env.SMTP_USER}>`,
+    to: email,
+    subject: `Comprobante N° ${nro} — PHOTOExpress`,
+    html: `<p>Hola <strong>${nombre}</strong>,</p><p>Adjuntamos el comprobante de pago N° ${nro}. Muchas gracias.</p><p>PHOTOExpress</p>`,
+    attachments: [{ filename: `comprobante-${nro}.pdf`, content: pdfBuffer, contentType: 'application/pdf' }]
+  })
+}
+
+module.exports = { enviarMailPedidoRecibido, enviarMailPedidoListo, enviarMailComprobante }

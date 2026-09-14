@@ -29,6 +29,10 @@ export default function Admin({ usuario, onLogout }) {
   const [ordenDirAdmin, setOrdenDirAdmin] = useState('desc')
   const [clientesActivos, setClientesActivos] = useState([])
   const [clienteSeleccionado, setClienteSeleccionado] = useState(null)
+  const [modalComprobante, setModalComprobante] = useState(null) // { cliente_id, cliente_nombre, pedidos[] }
+  const [pedidosComprobante, setPedidosComprobante] = useState([])
+  const [seleccionados, setSeleccionados] = useState([])
+  const [generandoPDF, setGenerandoPDF] = useState(false)
   const [reporte, setReporte] = useState(null)
   const [fechaDesde, setFechaDesde] = useState(new Date(new Date().setDate(1)).toISOString().split('T')[0])
   const [fechaHasta, setFechaHasta] = useState(new Date().toISOString().split('T')[0])
@@ -97,6 +101,43 @@ export default function Admin({ usuario, onLogout }) {
     setSubiendoComprobante(null)
     setMensaje('Comprobante subido ✓')
     setTimeout(() => setMensaje(''), 3000)
+  }
+
+  const abrirComprobante = async (clienteId, clienteNombre) => {
+    const res = await fetch(`/api/comprobantes/facturados/${clienteId}`, { headers })
+    const data = await res.json()
+    setPedidosComprobante(Array.isArray(data) ? data : [])
+    setSeleccionados(Array.isArray(data) ? data.map(p => p.id) : [])
+    setModalComprobante({ cliente_id: clienteId, cliente_nombre: clienteNombre })
+  }
+
+  const generarPDF = async () => {
+    if (!seleccionados.length) return
+    setGenerandoPDF(true)
+    const res = await fetch('/api/comprobantes/generar', {
+      method: 'POST', headers,
+      body: JSON.stringify({ pedido_ids: seleccionados, cliente_id: modalComprobante.cliente_id })
+    })
+    setGenerandoPDF(false)
+    if (!res.ok) { setMensaje('Error al generar comprobante'); return }
+    const blob = await res.blob()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a'); a.href = url; a.download = 'comprobante.pdf'; a.click()
+    URL.revokeObjectURL(url)
+    setModalComprobante(null)
+    setMensaje('Comprobante generado y pedidos marcados como cobrado ✓')
+    setTimeout(() => setMensaje(''), 4000)
+    // Recargar clientes
+    fetch('/api/pedidos', { headers }).then(r => r.json()).then(data => {
+      if (!Array.isArray(data)) return
+      const map = {}
+      data.filter(p => ['ingresado','facturado','cobrado','en_proceso'].includes(p.estado)).forEach(p => {
+        const key = p.usuario_id
+        if (!map[key]) map[key] = { id: key, nombre: p.cliente_nombre, email: p.cliente_email, pedidos: [] }
+        map[key].pedidos.push(p)
+      })
+      setClientesActivos(Object.values(map))
+    })
   }
 
   const verDetallePedido = async (id) => {
@@ -637,9 +678,15 @@ export default function Admin({ usuario, onLogout }) {
                     <p className="text-sm font-semibold text-gray-800">{c.nombre || '—'}</p>
                     <p className="text-xs text-gray-400">{c.email}</p>
                   </div>
-                  <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
-                    {c.pedidos.length} pedido{c.pedidos.length !== 1 ? 's' : ''}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
+                      {c.pedidos.length} pedido{c.pedidos.length !== 1 ? 's' : ''}
+                    </span>
+                    <button onClick={() => abrirComprobante(c.id, c.nombre)}
+                      className="text-xs bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700">
+                      Comprobante
+                    </button>
+                  </div>
                 </div>
                 <div className="space-y-2">
                   {c.pedidos.map(p => (
@@ -764,6 +811,54 @@ export default function Admin({ usuario, onLogout }) {
           </div>
         )}
       </div>
+      {/* Modal comprobante */}
+      {modalComprobante && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
+          <div className="bg-white rounded-xl w-full max-w-lg shadow-xl overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <h3 className="text-sm font-semibold text-gray-800">Comprobante — {modalComprobante.cliente_nombre}</h3>
+              <button onClick={() => setModalComprobante(null)} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
+            </div>
+            <div className="p-5">
+              {pedidosComprobante.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-4">No hay pedidos facturados para este cliente</p>
+              ) : (
+                <>
+                  <p className="text-xs text-gray-500 mb-3">Seleccioná los pedidos a incluir en el comprobante:</p>
+                  <div className="space-y-2 max-h-64 overflow-y-auto mb-4">
+                    {pedidosComprobante.map(p => (
+                      <label key={p.id} className="flex items-center gap-3 p-3 rounded-lg border border-gray-200 cursor-pointer hover:bg-gray-50">
+                        <input type="checkbox" checked={seleccionados.includes(p.id)}
+                          onChange={e => setSeleccionados(prev => e.target.checked ? [...prev, p.id] : prev.filter(id => id !== p.id))}
+                          className="text-blue-600 rounded"/>
+                        <div className="flex-1">
+                          <span className="text-sm font-medium text-blue-600">{p.codigo}</span>
+                          <span className="text-xs text-gray-500 ml-2">{p.tipo_papel}</span>
+                          <span className="text-xs text-gray-400 ml-2">{p.items?.map(i => `${i.servicio_nombre?.replace(/^Foto /, '')}(${i.cantidad})`).join(', ')}</span>
+                        </div>
+                        <span className="text-sm font-medium text-gray-800">${parseFloat(p.total || 0).toLocaleString()}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <div className="flex justify-between items-center border-t border-gray-100 pt-3">
+                    <span className="text-sm font-semibold text-gray-700">
+                      Total: ${pedidosComprobante.filter(p => seleccionados.includes(p.id)).reduce((sum, p) => sum + parseFloat(p.total || 0), 0).toLocaleString()}
+                    </span>
+                    <div className="flex gap-3">
+                      <button onClick={() => setModalComprobante(null)} className="text-sm text-gray-400 hover:text-gray-600 px-4 py-2">Cancelar</button>
+                      <button onClick={generarPDF} disabled={generandoPDF || !seleccionados.length}
+                        className="bg-blue-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
+                        {generandoPDF ? 'Generando...' : 'Generar PDF y enviar mail'}
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Drawer detalle de pedido */}
       {(pedidoDetalle || cargandoDetalle) && (
         <div className="fixed inset-0 z-50 flex">
