@@ -10,26 +10,24 @@ const generarComprobante = async (req, res) => {
     const clienteRes = await db.query('SELECT nombre, email FROM usuarios WHERE id = $1', [cliente_id])
     const cliente = clienteRes.rows[0]
 
-    // Obtener configuracion de pagos
     const configRes = await db.query('SELECT clave, valor FROM configuracion')
     const config = {}
     configRes.rows.forEach(r => { config[r.clave] = r.valor })
     const descuentoPct = parseFloat(config.descuento_transferencia || 0)
 
-    // Obtener pedidos con items
     const pedidos = []
     for (const pid of pedido_ids) {
       const p = await db.query('SELECT * FROM pedidos WHERE id = $1', [pid])
       if (!p.rows.length) continue
       const items = await db.query(
-        `SELECT pi.cantidad, pi.precio_unitario, pi.subtotal, s.nombre as servicio_nombre, s.precio as precio_catalogo
+        `SELECT pi.cantidad, pi.precio_unitario, s.nombre as servicio_nombre, s.precio as precio_catalogo
          FROM pedido_items pi LEFT JOIN servicios s ON pi.servicio_id = s.id
          WHERE pi.pedido_id = $1`, [pid]
       )
       pedidos.push({ ...p.rows[0], items: items.rows })
     }
 
-    // Agrupar tamaños entre todos los pedidos
+    // Agrupar tamaños
     const tamanosMap = {}
     for (const p of pedidos) {
       for (const item of p.items) {
@@ -42,28 +40,24 @@ const generarComprobante = async (req, res) => {
     }
     const lineas = Object.values(tamanosMap).sort((a, b) => a.nombre.localeCompare(b.nombre))
 
-    // Calcular totales
     const subtotal = lineas.reduce((sum, l) => sum + l.precio_unitario * l.cantidad, 0)
     const descuento = subtotal * (descuentoPct / 100)
     const total = subtotal - descuento
 
-    // Número de comprobante
     const nroRes = await db.query('SELECT COUNT(*) FROM comprobantes')
     const nro = String(parseInt(nroRes.rows[0].count) + 1).padStart(6, '0')
 
-    // Guardar en DB
     await db.query(
       'INSERT INTO comprobantes (numero, cliente_id, pedido_ids, total, creado_en) VALUES ($1, $2, $3, $4, NOW())',
       [nro, cliente_id, pedido_ids, total]
     )
-
-    // Marcar pedidos como cobrado
     await db.query(
       'UPDATE pedidos SET estado = $1, actualizado_en = NOW() WHERE id = ANY($2::int[])',
       ['cobrado', pedido_ids]
     )
 
-    // Generar PDF
+    const fmt = n => `$${parseFloat(n).toLocaleString('es-AR', { minimumFractionDigits: 2 })}`
+
     const doc = new PDFDocument({ margin: 50, size: 'A4' })
     const chunks = []
     doc.on('data', chunk => chunks.push(chunk))
@@ -71,99 +65,111 @@ const generarComprobante = async (req, res) => {
     await new Promise(resolve => {
       doc.on('end', resolve)
 
-      const fmt = n => `$${parseFloat(n).toLocaleString('es-AR', { minimumFractionDigits: 2 })}`
+      // ---- HEADER ----
+      // Logo/nombre laboratorio (izquierda)
+      doc.fontSize(20).font('Helvetica-Bold').fillColor('#000').text('PHOTOExpress', 50, 50)
+      doc.fontSize(9).font('Helvetica').fillColor('#555')
+        .text('Laboratorio fotografico digital', 50, 74)
+        .text('www.photoexpress.com.ar', 50, 86)
+        .text(`WhatsApp: ${config.whatsapp_numero || '1140396148'}`, 50, 98)
+        .text(`Alias: ${config.alias || 'photoexpress'}  |  Titular: ${config.titular || 'Jose Luis Fortuna'}`, 50, 110)
 
-      // Titulo comprobante
-      doc.fontSize(14).font('Helvetica-Bold')
-        .text(`Comprobante A ${String(nro).padStart(10, '0')}`, { align: 'center' })
-      doc.fontSize(9).font('Helvetica').fillColor('#444')
-        .text(`${new Date().toLocaleDateString('es-AR')} ${new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}`, { align: 'center' })
-      doc.moveDown(0.5)
-
-      // Datos laboratorio
-      doc.fontSize(9).font('Helvetica').fillColor('#000')
-        .text('PHOTOExpress')
-        .text(`Alias: ${config.alias || 'photoexpress'}`)
-        .text(`Titular: ${config.titular || 'Jose Luis Fortuna'}`)
-        .text(`WhatsApp: ${config.whatsapp_numero || '1140396148'}`)
-        .text('www.photoexpress.com.ar')
-      doc.moveDown(0.3)
-
-      // Datos cliente
-      doc.text(`Cliente: ${cliente?.nombre || '-'}`)
-      doc.text(`Email: ${cliente?.email || '-'}`)
-      doc.moveDown(0.5)
+      // Número y fecha (derecha)
+      doc.fontSize(13).font('Helvetica-Bold').fillColor('#000')
+        .text(`COMPROBANTE N ${nro}`, 300, 50, { width: 245, align: 'right' })
+      doc.fontSize(9).font('Helvetica').fillColor('#555')
+        .text(`Fecha: ${new Date().toLocaleDateString('es-AR')}`, 300, 70, { width: 245, align: 'right' })
 
       // Línea separadora
-      doc.moveTo(50, doc.y).lineTo(545, doc.y).strokeColor('#999').stroke()
-      doc.moveDown(0.3)
+      doc.moveTo(50, 128).lineTo(545, 128).strokeColor('#aaa').lineWidth(0.5).stroke()
+
+      // Datos cliente
+      doc.fontSize(9).font('Helvetica-Bold').fillColor('#000').text('Cliente:', 50, 138)
+      doc.fontSize(9).font('Helvetica').text(cliente?.nombre || '-', 110, 138)
+      doc.text(cliente?.email || '-', 110, 150)
+
+      // ---- TABLA ----
+      const tY = 175
+      const C = { nro: 50, cant: 95, desc: 155, punit: 340, descto: 430, total: 490 }
+      const W = { nro: 40, cant: 55, desc: 180, punit: 85, descto: 55, total: 55 }
 
       // Header tabla
-      const cols = { num: 50, cantidad: 90, desc: 150, punit: 340, descto: 430, total: 490 }
-      const y0 = doc.y
-      doc.fontSize(9).font('Helvetica-Bold')
-        .text('Nro', cols.num, y0, { width: 35 })
-        .text('Cantidad', cols.cantidad, y0, { width: 55 })
-        .text('Descripcion', cols.desc, y0, { width: 180 })
-        .text('P.Unit', cols.punit, y0, { width: 85 })
-        .text('Descuento', cols.descto, y0, { width: 55 })
-        .text('Total', cols.total, y0, { width: 55, align: 'right' })
-      doc.moveDown(0.3)
-      doc.moveTo(50, doc.y).lineTo(545, doc.y).strokeColor('#999').stroke()
-      doc.moveDown(0.2)
+      doc.rect(50, tY, 495, 18).fill('#e5e7eb')
+      doc.fontSize(8).font('Helvetica-Bold').fillColor('#374151')
+      const hY = tY + 5
+      doc.text('Nro', C.nro, hY, { width: W.nro })
+        .text('Cantidad', C.cant, hY, { width: W.cant })
+        .text('Descripcion', C.desc, hY, { width: W.desc })
+        .text('P.Unit', C.punit, hY, { width: W.punit })
+        .text('Descuento', C.descto, hY, { width: W.descto })
+        .text('Total', C.total, hY, { width: W.total, align: 'right' })
 
-      // Filas — tamaños agrupados
+      let y = tY + 18
       lineas.forEach((l, i) => {
-        const subtotalLinea = l.precio_unitario * l.cantidad
-        const desctoLinea = subtotalLinea * (descuentoPct / 100)
-        const totalLinea = subtotalLinea - desctoLinea
-        const y = doc.y
-        doc.fontSize(9).font('Helvetica').fillColor('#000')
-          .text(String(i + 1).padStart(2, '0'), cols.num, y, { width: 35 })
-          .text(String(l.cantidad), cols.cantidad, y, { width: 55 })
-          .text(l.nombre, cols.desc, y, { width: 180 })
-          .text(fmt(l.precio_unitario), cols.punit, y, { width: 85 })
-          .text(descuentoPct > 0 ? `${descuentoPct.toFixed(0)}%` : '-', cols.descto, y, { width: 55 })
-          .text(fmt(totalLinea), cols.total, y, { width: 55, align: 'right' })
-        doc.moveDown(0.4)
+        const subtL = l.precio_unitario * l.cantidad
+        const totalL = subtL - subtL * (descuentoPct / 100)
+        const bg = i % 2 === 0 ? '#f9fafb' : '#fff'
+        doc.rect(50, y, 495, 16).fill(bg).stroke('#e5e7eb')
+        doc.fontSize(8).font('Helvetica').fillColor('#111')
+          .text(String(i + 1).padStart(2, '0'), C.nro, y + 4, { width: W.nro })
+          .text(String(l.cantidad), C.cant, y + 4, { width: W.cant })
+          .text(l.nombre, C.desc, y + 4, { width: W.desc })
+          .text(fmt(l.precio_unitario), C.punit, y + 4, { width: W.punit })
+          .text(descuentoPct > 0 ? `${descuentoPct.toFixed(0)}%` : '-', C.descto, y + 4, { width: W.descto })
+          .text(fmt(totalL), C.total, y + 4, { width: W.total, align: 'right' })
+        y += 16
       })
 
-      doc.moveDown(0.3)
-      doc.moveTo(50, doc.y).lineTo(545, doc.y).strokeColor('#999').stroke()
-      doc.moveDown(0.5)
-
       // Totales
-      const rightX = 380
-      doc.fontSize(9).font('Helvetica')
-        .text(`Subtotal (1) $`, rightX, doc.y, { width: 100 })
-        .text(fmt(subtotal), rightX + 110, doc.y - doc.currentLineHeight(), { width: 55, align: 'right' })
-      doc.moveDown(0.3)
-
+      y += 8
+      const tCol = 360
+      const tW = 180
+      doc.fontSize(8).font('Helvetica').fillColor('#555')
+        .text('Subtotal (1) $', tCol, y, { width: tW - 60 })
+        .text(fmt(subtotal), tCol + tW - 60, y, { width: 55, align: 'right' })
+      y += 13
       if (descuentoPct > 0) {
-        doc.text(`Descuento $`, rightX, doc.y, { width: 100 })
-          .text(fmt(descuento), rightX + 110, doc.y - doc.currentLineHeight(), { width: 55, align: 'right' })
-        doc.moveDown(0.3)
-        doc.text(`Subtotal (2) $`, rightX, doc.y, { width: 100 })
-          .text(fmt(subtotal - descuento), rightX + 110, doc.y - doc.currentLineHeight(), { width: 55, align: 'right' })
-        doc.moveDown(0.3)
+        doc.text('Descuento $', tCol, y, { width: tW - 60 })
+          .text(fmt(descuento), tCol + tW - 60, y, { width: 55, align: 'right' })
+        y += 13
+        doc.text('Subtotal (2) $', tCol, y, { width: tW - 60 })
+          .text(fmt(subtotal - descuento), tCol + tW - 60, y, { width: 55, align: 'right' })
+        y += 13
       }
+      doc.fontSize(9).font('Helvetica-Bold').fillColor('#000')
+        .text('TOTAL $', tCol, y, { width: tW - 60 })
+        .text(fmt(total), tCol + tW - 60, y, { width: 55, align: 'right' })
 
-      doc.fontSize(10).font('Helvetica-Bold')
-        .text(`TOTAL $`, rightX, doc.y, { width: 100 })
-        .text(fmt(total), rightX + 110, doc.y - doc.currentLineHeight(), { width: 55, align: 'right' })
+      // ---- PIE: COMANDERA ----
+      y += 28
+      doc.moveTo(50, y).lineTo(545, y).strokeColor('#aaa').lineWidth(0.5).stroke()
+      y += 8
+      doc.fontSize(8).font('Helvetica-Bold').fillColor('#374151')
+        .text('Detalle de ordenes incluidas:', 50, y)
+      y += 12
 
-      doc.moveDown(1)
-      doc.moveTo(50, doc.y).lineTo(545, doc.y).strokeColor('#ddd').stroke()
-      doc.moveDown(0.5)
+      // Tabla de comandera
+      doc.rect(50, y, 495, 14).fill('#e5e7eb')
+      doc.fontSize(7).font('Helvetica-Bold').fillColor('#374151')
+        .text('Orden', 53, y + 3, { width: 60 })
+        .text('Papel', 118, y + 3, { width: 70 })
+        .text('Tamanos y cantidades', 193, y + 3, { width: 220 })
+        .text('Archivos', 418, y + 3, { width: 45 })
+        .text('Total', 468, y + 3, { width: 72, align: 'right' })
+      y += 14
 
-      // Pie: comandera con detalle de pedidos
-      doc.fontSize(8).font('Helvetica-Bold').text('Detalle de ordenes incluidas:')
-      doc.moveDown(0.2)
       for (const p of pedidos) {
         const detalleItems = p.items.map(i => `${i.servicio_nombre?.replace(/^Foto /, '')}(${i.cantidad})`).join(', ')
-        doc.fontSize(7).font('Helvetica').fillColor('#444')
-          .text(`${p.codigo}  ${p.tipo_papel || '-'}  ${detalleItems}  ${p.archivos_urls?.length || 0} archivos  ${fmt(p.total)}`)
-        doc.moveDown(0.2)
+        const bg = pedidos.indexOf(p) % 2 === 0 ? '#f9fafb' : '#fff'
+        const h = Math.max(14, Math.ceil(detalleItems.length / 40) * 10 + 4)
+        doc.rect(50, y, 495, h).fill(bg).stroke('#e5e7eb')
+        doc.fontSize(7).font('Helvetica').fillColor('#333')
+          .text(p.codigo, 53, y + 3, { width: 60 })
+          .text(p.tipo_papel || '-', 118, y + 3, { width: 70 })
+          .text(detalleItems, 193, y + 3, { width: 220 })
+          .text(String(p.archivos_urls?.length || 0), 418, y + 3, { width: 45 })
+          .text(fmt(p.total), 468, y + 3, { width: 72, align: 'right' })
+        y += h
       }
 
       doc.end()
