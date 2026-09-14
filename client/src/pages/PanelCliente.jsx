@@ -193,15 +193,15 @@ export default function PanelCliente({ usuario, onLogout }) {
         </div>
       </div>
 
-      <div className="max-w-5xl mx-auto px-6 py-6">
+      <div className="w-full px-4 py-4">
 
         {vista === 'dashboard' && (
           <div>
             <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="w-full text-sm border-collapse">
                   <thead>
-                    <tr className="bg-gray-50 border-b border-gray-200">
+                    <tr className="bg-gray-50">
                       {[
                         { key: 'creado_en', label: 'Fecha Creación' },
                         { key: 'codigo', label: 'Nro. Orden' },
@@ -213,15 +213,15 @@ export default function PanelCliente({ usuario, onLogout }) {
                         { key: 'finalizado_en', label: 'Fecha Finalización' },
                         { key: 'notas', label: 'Comentarios' },
                       ].map(col => (
-                        <th key={col.key} className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase cursor-pointer select-none whitespace-nowrap"
+                        <th key={col.key} className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase cursor-pointer select-none whitespace-nowrap border border-gray-200"
                           onClick={() => { setOrdenCol(col.key); setOrdenDir(prev => ordenCol === col.key && prev === 'asc' ? 'desc' : 'asc') }}>
                           {col.label} {ordenCol === col.key ? (ordenDir === 'asc' ? '↑' : '↓') : ''}
                         </th>
                       ))}
                     </tr>
-                    <tr className="border-b border-gray-100 bg-white">
+                    <tr className="bg-white">
                       {['fecha', 'codigo', 'papel', 'archivos', 'copias', 'medidas', 'estado', 'fechaFin', 'notas'].map(k => (
-                        <th key={k} className="px-2 py-1">
+                        <th key={k} className="px-2 py-1 border border-gray-200">
                           <input value={filtros[k] || ''} onChange={e => setFiltros(prev => ({ ...prev, [k]: e.target.value }))}
                             className="w-full border border-gray-200 rounded px-2 py-1 text-xs font-normal focus:outline-none focus:ring-1 focus:ring-blue-400" placeholder=""/>
                         </th>
@@ -250,14 +250,14 @@ export default function PanelCliente({ usuario, onLogout }) {
                         const medidas = p.items?.map(i => `${i.servicio_nombre?.replace(/^Foto /, '')}(${i.cantidad})`).join(', ') || '—'
                         const totalCopias = p.items?.reduce((sum, i) => sum + i.cantidad, 0) || 0
                         return (
-                          <tr key={p.id} className="border-b border-gray-50 hover:bg-gray-50">
-                            <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{new Date(p.creado_en).toLocaleDateString()}</td>
-                            <td className="px-3 py-2 text-blue-600 font-medium whitespace-nowrap">{p.codigo}</td>
-                            <td className="px-3 py-2 text-gray-700 whitespace-nowrap">{p.tipo_papel || '—'}</td>
-                            <td className="px-3 py-2 text-center text-gray-700">{p.archivos_urls?.length || 0}</td>
-                            <td className="px-3 py-2 text-center text-gray-700">{totalCopias || '—'}</td>
-                            <td className="px-3 py-2 text-gray-600 text-xs whitespace-nowrap">{medidas}</td>
-                            <td className="px-3 py-2 whitespace-nowrap">
+                          <tr key={p.id} className="hover:bg-blue-50">
+                            <td className="px-3 py-2 text-gray-600 whitespace-nowrap border border-gray-200">{new Date(p.creado_en).toLocaleDateString()}</td>
+                            <td className="px-3 py-2 text-blue-600 font-medium whitespace-nowrap border border-gray-200">{p.codigo}</td>
+                            <td className="px-3 py-2 text-gray-700 whitespace-nowrap border border-gray-200">{p.tipo_papel || '—'}</td>
+                            <td className="px-3 py-2 text-center text-gray-700 border border-gray-200">{p.archivos_urls?.length || 0}</td>
+                            <td className="px-3 py-2 text-center text-gray-700 border border-gray-200">{totalCopias || '—'}</td>
+                            <td className="px-3 py-2 text-gray-600 text-xs whitespace-nowrap border border-gray-200">{medidas}</td>
+                            <td className="px-3 py-2 whitespace-nowrap border border-gray-200">
                               <span className={'text-xs px-2 py-1 rounded-full font-medium ' + ({
                                 ingresado: 'bg-gray-100 text-gray-600',
                                 facturado: 'bg-yellow-100 text-yellow-700',
@@ -268,15 +268,15 @@ export default function PanelCliente({ usuario, onLogout }) {
                                 {p.estado?.replace('_', ' ')}
                               </span>
                             </td>
-                            <td className="px-3 py-2 text-gray-400 whitespace-nowrap text-xs">
+                            <td className="px-3 py-2 text-gray-400 whitespace-nowrap text-xs border border-gray-200">
                               {p.finalizado_en ? new Date(p.finalizado_en).toLocaleDateString() : '—'}
                             </td>
-                            <td className="px-3 py-2 text-gray-500 text-xs max-w-xs truncate">{p.notas || '—'}</td>
+                            <td className="px-3 py-2 text-gray-500 text-xs border border-gray-200" style={{maxWidth:'200px'}}>{p.notas || '—'}</td>
                           </tr>
                         )
                       })}
                     {pedidos.length === 0 && (
-                      <tr><td colSpan="9" className="px-3 py-8 text-center text-gray-400">No tenés pedidos todavía</td></tr>
+                      <tr><td colSpan="9" className="px-3 py-8 text-center text-gray-400 border border-gray-200">No tenés pedidos todavía</td></tr>
                     )}
                   </tbody>
                 </table>

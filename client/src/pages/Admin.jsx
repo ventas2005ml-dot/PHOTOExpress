@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 
-const TABS = ['estadisticas', 'reportes', 'catalogo', 'promos', 'pedidos', 'clientes', 'usuarios', 'configuracion']
+const TABS = ['estadisticas', 'reportes', 'todos los pedidos', 'catalogo', 'promos', 'pedidos', 'clientes', 'usuarios', 'configuracion']
 
 export default function Admin({ usuario, onLogout }) {
   const [stats, setStats] = useState(null)
@@ -23,6 +23,10 @@ export default function Admin({ usuario, onLogout }) {
   const [subiendoComprobante, setSubiendoComprobante] = useState(null)
   const [pedidoDetalle, setPedidoDetalle] = useState(null)
   const [cargandoDetalle, setCargandoDetalle] = useState(false)
+  const [todosPedidos, setTodosPedidos] = useState([])
+  const [filtrosAdmin, setFiltrosAdmin] = useState({})
+  const [ordenColAdmin, setOrdenColAdmin] = useState('creado_en')
+  const [ordenDirAdmin, setOrdenDirAdmin] = useState('desc')
   const [clientesActivos, setClientesActivos] = useState([])
   const [clienteSeleccionado, setClienteSeleccionado] = useState(null)
   const [reporte, setReporte] = useState(null)
@@ -112,6 +116,14 @@ export default function Admin({ usuario, onLogout }) {
     setPedidos(data)
     setCargandoPedidos(false)
   }
+
+  useEffect(() => {
+    if (tab === 'todos los pedidos' && todosPedidos.length === 0) {
+      fetch('/api/pedidos', { headers }).then(r => r.json()).then(data => {
+        if (Array.isArray(data)) setTodosPedidos(data)
+      })
+    }
+  }, [tab])
 
   const guardarServicio = async () => {
     const { id, nombre, descripcion, precio, activo } = editandoServicio
@@ -225,6 +237,98 @@ export default function Admin({ usuario, onLogout }) {
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {tab === 'todos los pedidos' && (
+          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm border-collapse">
+                <thead>
+                  <tr className="bg-gray-50">
+                    {[
+                      { key: 'creado_en', label: 'Fecha' },
+                      { key: 'codigo', label: 'Nro. Orden' },
+                      { key: 'cliente_nombre', label: 'Cliente' },
+                      { key: 'tipo_papel', label: 'Papel' },
+                      { key: 'archivos', label: 'Archivos' },
+                      { key: 'copias', label: 'Copias' },
+                      { key: 'medidas', label: 'Medidas' },
+                      { key: 'estado', label: 'Estado' },
+                      { key: 'finalizado_en', label: 'Finalizado' },
+                      { key: 'notas', label: 'Comentarios' },
+                    ].map(col => (
+                      <th key={col.key} className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase cursor-pointer select-none whitespace-nowrap border border-gray-200"
+                        onClick={() => { setOrdenColAdmin(col.key); setOrdenDirAdmin(prev => ordenColAdmin === col.key && prev === 'asc' ? 'desc' : 'asc') }}>
+                        {col.label} {ordenColAdmin === col.key ? (ordenDirAdmin === 'asc' ? '↑' : '↓') : ''}
+                      </th>
+                    ))}
+                  </tr>
+                  <tr className="bg-white">
+                    {['fecha', 'codigo', 'cliente', 'papel', 'archivos', 'copias', 'medidas', 'estado', 'finalizado', 'notas'].map(k => (
+                      <th key={k} className="px-2 py-1 border border-gray-200">
+                        <input value={filtrosAdmin[k] || ''} onChange={e => setFiltrosAdmin(prev => ({ ...prev, [k]: e.target.value }))}
+                          className="w-full border border-gray-200 rounded px-2 py-1 text-xs font-normal focus:outline-none focus:ring-1 focus:ring-blue-400" placeholder=""/>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {todosPedidos
+                    .filter(p => {
+                      const f = filtrosAdmin
+                      const medidas = p.items?.map(i => `${i.servicio_nombre?.replace(/^Foto /, '')}(${i.cantidad})`).join(', ') || ''
+                      return (
+                        (!f.fecha || new Date(p.creado_en).toLocaleDateString().includes(f.fecha)) &&
+                        (!f.codigo || p.codigo?.toLowerCase().includes(f.codigo.toLowerCase())) &&
+                        (!f.cliente || (p.cliente_nombre || '').toLowerCase().includes(f.cliente.toLowerCase())) &&
+                        (!f.papel || (p.tipo_papel || '').toLowerCase().includes(f.papel.toLowerCase())) &&
+                        (!f.estado || p.estado?.toLowerCase().includes(f.estado.toLowerCase())) &&
+                        (!f.medidas || medidas.toLowerCase().includes(f.medidas.toLowerCase())) &&
+                        (!f.notas || (p.notas || '').toLowerCase().includes(f.notas.toLowerCase()))
+                      )
+                    })
+                    .sort((a, b) => {
+                      let va = a[ordenColAdmin] || ''; let vb = b[ordenColAdmin] || ''
+                      return ordenDirAdmin === 'asc' ? (va > vb ? 1 : -1) : (va < vb ? 1 : -1)
+                    })
+                    .map(p => {
+                      const medidas = p.items?.map(i => `${i.servicio_nombre?.replace(/^Foto /, '')}(${i.cantidad})`).join(', ') || '—'
+                      const totalCopias = p.items?.reduce((sum, i) => sum + i.cantidad, 0) || 0
+                      return (
+                        <tr key={p.id} className="hover:bg-blue-50 cursor-pointer" onClick={() => verDetallePedido(p.id)}>
+                          <td className="px-3 py-2 text-gray-600 whitespace-nowrap border border-gray-200">{new Date(p.creado_en).toLocaleDateString()}</td>
+                          <td className="px-3 py-2 text-blue-600 font-medium whitespace-nowrap border border-gray-200">{p.codigo}</td>
+                          <td className="px-3 py-2 text-gray-700 whitespace-nowrap border border-gray-200">{p.cliente_nombre || '—'}</td>
+                          <td className="px-3 py-2 text-gray-700 whitespace-nowrap border border-gray-200">{p.tipo_papel || '—'}</td>
+                          <td className="px-3 py-2 text-center text-gray-700 border border-gray-200">{p.archivos_urls?.length || 0}</td>
+                          <td className="px-3 py-2 text-center text-gray-700 border border-gray-200">{totalCopias || '—'}</td>
+                          <td className="px-3 py-2 text-gray-600 text-xs whitespace-nowrap border border-gray-200">{medidas}</td>
+                          <td className="px-3 py-2 whitespace-nowrap border border-gray-200">
+                            <select value={p.estado} onClick={e => e.stopPropagation()} onChange={async e => {
+                              await fetch(`/api/pedidos/${p.id}/estado`, { method: 'PUT', headers, body: JSON.stringify({ estado: e.target.value }) })
+                              setTodosPedidos(prev => prev.map(x => x.id === p.id ? { ...x, estado: e.target.value } : x))
+                            }} className="border border-gray-200 rounded px-1 py-0.5 text-xs focus:outline-none">
+                              <option value="ingresado">Ingresado</option>
+                              <option value="facturado">Facturado</option>
+                              <option value="cobrado">Cobrado</option>
+                              <option value="en_proceso">En proceso</option>
+                              <option value="finalizado">Finalizado</option>
+                            </select>
+                          </td>
+                          <td className="px-3 py-2 text-gray-400 whitespace-nowrap text-xs border border-gray-200">
+                            {p.finalizado_en ? new Date(p.finalizado_en).toLocaleDateString() : '—'}
+                          </td>
+                          <td className="px-3 py-2 text-gray-500 text-xs border border-gray-200" style={{maxWidth:'200px'}}>{p.notas || '—'}</td>
+                        </tr>
+                      )
+                    })}
+                  {todosPedidos.length === 0 && (
+                    <tr><td colSpan="10" className="px-3 py-8 text-center text-gray-400 border border-gray-200">No hay pedidos</td></tr>
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
         )}
