@@ -180,7 +180,6 @@ const generarComprobante = async (req, res) => {
         .text('Detalle de ordenes incluidas:', 50, y)
       y += 12
 
-      // Tabla comandera simplificada
       doc.rect(50, y, 495, 14).fill('#e5e7eb')
       doc.fontSize(7).font('Helvetica-Bold').fillColor('#374151')
         .text('Orden', 53, y + 3, { width: 80 })

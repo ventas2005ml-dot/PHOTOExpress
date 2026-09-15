@@ -928,21 +928,30 @@ export default function Admin({ usuario, onLogout }) {
                 )}
                 <div>
                   <p className="text-xs text-gray-500 mb-2">Material del cliente</p>
-                  {pedidoDetalle.material_borrado_en ? (
+                {pedidoDetalle.material_borrado_en ? (
                     <p className="text-xs text-gray-400 bg-gray-50 rounded-lg px-3 py-2">
                       Material borrado el {new Date(pedidoDetalle.material_borrado_en).toLocaleDateString()}
                     </p>
                   ) : (
-                    <button onClick={async () => {
-                      if (!confirm('¿Borrar el material de este pedido del servidor?')) return
-                      const res = await fetch('/api/admin/limpiar-material', { method: 'POST', headers, body: JSON.stringify({ pedido_id: pedidoDetalle.id }) })
-                      const data = await res.json()
-                      setPedidoDetalle(prev => ({ ...prev, material_borrado_en: new Date().toISOString() }))
-                      setMensaje(data.mensaje)
-                      setTimeout(() => setMensaje(''), 3000)
-                    }} className="text-xs bg-red-50 text-red-600 hover:bg-red-100 px-3 py-2 rounded-lg">
-                      🗑 Borrar material del cliente
-                    </button>
+                    <div className="flex gap-2">
+                      {pedidoDetalle.archivos_urls?.length > 0 && (
+                        <a href={`/api/pedidos/${pedidoDetalle.id}/descargar`}
+                          className="text-xs bg-blue-600 text-white hover:bg-blue-700 px-3 py-2 rounded-lg flex items-center gap-1"
+                          download>
+                          ⬇ Descargar ZIP ({pedidoDetalle.archivos_urls.length} archivos)
+                        </a>
+                      )}
+                      <button onClick={async () => {
+                        if (!confirm('¿Borrar el material de este pedido del servidor?')) return
+                        const res = await fetch('/api/admin/limpiar-material', { method: 'POST', headers, body: JSON.stringify({ pedido_id: pedidoDetalle.id }) })
+                        const data = await res.json()
+                        setPedidoDetalle(prev => ({ ...prev, material_borrado_en: new Date().toISOString() }))
+                        setMensaje(data.mensaje)
+                        setTimeout(() => setMensaje(''), 3000)
+                      }} className="text-xs bg-red-50 text-red-600 hover:bg-red-100 px-3 py-2 rounded-lg">
+                        🗑 Borrar material
+                      </button>
+                    </div>
                   )}
                 </div>
                 <div>
