@@ -935,11 +935,17 @@ export default function Admin({ usuario, onLogout }) {
                   ) : (
                     <div className="flex gap-2">
                       {pedidoDetalle.archivos_urls?.length > 0 && (
-                        <a href={`/api/pedidos/${pedidoDetalle.id}/descargar`}
-                          className="text-xs bg-blue-600 text-white hover:bg-blue-700 px-3 py-2 rounded-lg flex items-center gap-1"
-                          download>
+                        <button onClick={async () => {
+                          const res = await fetch(`/api/pedidos/${pedidoDetalle.id}/descargar`, { headers })
+                          if (!res.ok) { setMensaje('Error al descargar'); return }
+                          const blob = await res.blob()
+                          const url = URL.createObjectURL(blob)
+                          const a = document.createElement('a')
+                          a.href = url; a.download = `${pedidoDetalle.codigo}.zip`; a.click()
+                          URL.revokeObjectURL(url)
+                        }} className="text-xs bg-blue-600 text-white hover:bg-blue-700 px-3 py-2 rounded-lg">
                           ⬇ Descargar ZIP ({pedidoDetalle.archivos_urls.length} archivos)
-                        </a>
+                        </button>
                       )}
                       <button onClick={async () => {
                         if (!confirm('¿Borrar el material de este pedido del servidor?')) return
