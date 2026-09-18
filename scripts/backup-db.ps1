@@ -39,21 +39,52 @@ if ($LASTEXITCODE -ne 0) {
 
 Write-Host "Backup local creado correctamente."
 
+# --- Función auxiliar para peticiones WebDAV ---
+function Invoke-WebDav {
+    param(
+        [string]$Uri,
+        [string]$Method,
+        [string]$FilePath = $null
+    )
+    $req = [System.Net.WebRequest]::Create($Uri)
+    $req.Method = $Method
+    $req.Headers.Add("Authorization", "Basic $Auth")
+    $req.Timeout = 60000
+
+    if ($FilePath) {
+        $bytes = [System.IO.File]::ReadAllBytes($FilePath)
+        $req.ContentLength = $bytes.Length
+        $stream = $req.GetRequestStream()
+        $stream.Write($bytes, 0, $bytes.Length)
+        $stream.Close()
+    } else {
+        $req.ContentLength = 0
+    }
+
+    try {
+        $resp = $req.GetResponse()
+        $code = [int]$resp.StatusCode
+        $resp.Close()
+        return $code
+    } catch [System.Net.WebException] {
+        if ($_.Exception.Response) {
+            return [int]$_.Exception.Response.StatusCode
+        }
+        throw
+    }
+}
+
 # --- Crear carpeta backups en Nextcloud si no existe ---
 $Auth = [System.Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes("$($NextcloudUser):$($NextcloudPass)"))
-$Headers = @{ Authorization = "Basic $Auth" }
-
 $FolderUrl = "$NextcloudUrl/remote.php/dav/files/$NextcloudUser/$NextcloudFolder"
-try {
-    Invoke-WebRequest -Uri $FolderUrl -Method "MKCOL" -Headers $Headers -ErrorAction Stop | Out-Null
+
+$folderStatus = Invoke-WebDav -Uri $FolderUrl -Method "MKCOL"
+if ($folderStatus -eq 201) {
     Write-Host "Carpeta '$NextcloudFolder' creada en el NAS."
-} catch {
-    $StatusCode = $_.Exception.Response.StatusCode.value__
-    if ($StatusCode -eq 405) {
-        Write-Host "La carpeta '$NextcloudFolder' ya existe en el NAS."
-    } else {
-        Write-Host "ADVERTENCIA al crear carpeta: $_"
-    }
+} elseif ($folderStatus -eq 405) {
+    Write-Host "La carpeta '$NextcloudFolder' ya existe en el NAS."
+} else {
+    Write-Host "ADVERTENCIA: respuesta inesperada al crear carpeta (codigo $folderStatus)"
 }
 
 # --- Subir el backup al NAS ---
@@ -62,8 +93,12 @@ $UrlDestino = "$NextcloudUrl/remote.php/dav/files/$NextcloudUser/$NextcloudFolde
 
 Write-Host "Subiendo backup al NAS..."
 try {
-    Invoke-WebRequest -Uri $UrlDestino -Method "PUT" -Headers $Headers -InFile $ArchivoBackup -ContentType "application/sql"
-    Write-Host "Backup subido al NAS correctamente."
+    $uploadStatus = Invoke-WebDav -Uri $UrlDestino -Method "PUT" -FilePath $ArchivoBackup
+    if ($uploadStatus -eq 201 -or $uploadStatus -eq 204) {
+        Write-Host "Backup subido al NAS correctamente."
+    } else {
+        Write-Host "ADVERTENCIA: respuesta inesperada al subir backup (codigo $uploadStatus)"
+    }
 } catch {
     Write-Host "ADVERTENCIA: No se pudo subir el backup al NAS. $_"
 }
