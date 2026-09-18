@@ -216,7 +216,7 @@ export default function Admin({ usuario, onLogout }) {
     <div className="min-h-screen bg-gray-50">
       <div className={(esEmpleado ? 'bg-slate-700 border-slate-800' : 'bg-gray-900 border-gray-800') + ' border-b px-6 py-3 flex items-center justify-between'}>
         <div className="flex items-center gap-3">
-          <span className="text-xl">📷</span>
+          <img src="/logo.jpg" alt="PHOTOExpress" className="w-8 h-8 rounded-full object-cover"/>
           <span className="font-semibold text-white">PHOTOExpress</span>
           <span className="text-sm text-gray-400">{esEmpleado ? 'Panel Empleado' : 'Panel Admin'}</span>
         </div>

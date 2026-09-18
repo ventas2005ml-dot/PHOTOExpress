@@ -48,7 +48,7 @@ export default function Login({ onLogin, onRegistro }) {
     <div className="min-h-screen bg-gray-50 flex items-center justify-center">
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 w-full max-w-sm">
         <div className="text-center mb-8">
-          <div className="text-3xl mb-2">📷</div>
+          <img src="/logo.jpg" alt="PHOTOExpress" className="w-16 h-16 rounded-full object-cover mx-auto mb-2"/>
           <h1 className="text-xl font-semibold text-gray-800">PHOTOExpress</h1>
           <p className="text-sm text-gray-500 mt-1">Panel de gestión</p>
         </div>

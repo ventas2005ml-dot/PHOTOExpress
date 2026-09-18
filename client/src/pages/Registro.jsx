@@ -40,7 +40,7 @@ export default function Registro({ onVolver }) {
     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
       <div className="bg-white rounded-2xl border border-gray-200 p-8 max-w-sm w-full">
         <div className="flex items-center gap-2 mb-6">
-          <span className="text-2xl">📷</span>
+          <img src="/logo.jpg" alt="PHOTOExpress" className="w-8 h-8 rounded-full object-cover"/>
           <span className="font-semibold text-gray-800">PHOTOExpress</span>
         </div>
         <h2 className="text-lg font-semibold text-gray-800 mb-1">Crear cuenta</h2>
