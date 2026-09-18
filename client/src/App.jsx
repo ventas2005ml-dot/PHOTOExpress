@@ -22,6 +22,7 @@ function App() {
   }
 
   if (usuario.rol === 'admin') return <Admin usuario={usuario} onLogout={handleLogout} />
+  if (usuario.rol === 'empleado') return <Admin usuario={usuario} onLogout={handleLogout} />
   if (usuario.rol === 'cliente') return <PanelCliente usuario={usuario} onLogout={handleLogout} />
   return <Dashboard usuario={usuario} onLogout={handleLogout} />
 }

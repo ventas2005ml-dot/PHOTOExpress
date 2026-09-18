@@ -1,15 +1,18 @@
 import { useState, useEffect } from 'react'
 
-const TABS = ['estadisticas', 'reportes', 'todos los pedidos', 'catalogo', 'promos', 'pedidos', 'clientes', 'usuarios', 'configuracion']
+const TABS_ADMIN = ['estadisticas', 'reportes', 'todos los pedidos', 'catalogo', 'promos', 'pedidos', 'clientes', 'usuarios', 'configuracion']
+const TABS_EMPLEADO = ['todos los pedidos', 'pedidos', 'clientes', 'catalogo']
 
 export default function Admin({ usuario, onLogout }) {
+  const esEmpleado = usuario.rol === 'empleado'
+  const TABS = esEmpleado ? TABS_EMPLEADO : TABS_ADMIN
   const [stats, setStats] = useState(null)
   const [config, setConfig] = useState({})
   const [catalogo, setCatalogo] = useState([])
   const [categorias, setCategorias] = useState([])
   const [promos, setPromos] = useState([])
   const [usuarios, setUsuarios] = useState([])
-  const [tab, setTab] = useState('estadisticas')
+  const [tab, setTab] = useState(esEmpleado ? 'todos los pedidos' : 'estadisticas')
   const [guardando, setGuardando] = useState(false)
   const [mensaje, setMensaje] = useState('')
   const [nuevoServicio, setNuevoServicio] = useState({ categoria_id: '', nombre: '', descripcion: '', precio: '' })
@@ -211,11 +214,11 @@ export default function Admin({ usuario, onLogout }) {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="bg-gray-900 border-b border-gray-800 px-6 py-3 flex items-center justify-between">
+      <div className={(esEmpleado ? 'bg-slate-700 border-slate-800' : 'bg-gray-900 border-gray-800') + ' border-b px-6 py-3 flex items-center justify-between'}>
         <div className="flex items-center gap-3">
           <span className="text-xl">📷</span>
           <span className="font-semibold text-white">PHOTOExpress</span>
-          <span className="text-sm text-gray-400">Panel Admin</span>
+          <span className="text-sm text-gray-400">{esEmpleado ? 'Panel Empleado' : 'Panel Admin'}</span>
         </div>
         <div className="flex items-center gap-3">
           <span className="text-sm text-gray-300">{usuario.nombre}</span>
@@ -450,6 +453,7 @@ export default function Admin({ usuario, onLogout }) {
 
         {tab === 'catalogo' && (
           <div className="space-y-4">
+            {!esEmpleado && (
             <div className="bg-white rounded-xl border border-gray-200 p-4">
               <h3 className="text-sm font-medium text-gray-700 mb-3">Agregar servicio</h3>
               <div className="grid grid-cols-2 gap-3 mb-3">
@@ -481,6 +485,7 @@ export default function Admin({ usuario, onLogout }) {
                 Agregar servicio
               </button>
             </div>
+            )}
             <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
               <table className="w-full">
                 <thead>
@@ -517,7 +522,9 @@ export default function Admin({ usuario, onLogout }) {
                             : <span className="font-medium text-gray-800">${parseFloat(s.precio).toLocaleString()}</span>}
                         </td>
                         <td className="px-4 py-3 text-sm">
-                          {editando ? (
+                          {esEmpleado ? (
+                            <span className="text-xs text-gray-300">—</span>
+                          ) : editando ? (
                             <div className="flex gap-2">
                               <button onClick={guardarServicio} className="text-xs bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700">Guardar</button>
                               <button onClick={() => setEditandoServicio(null)} className="text-xs text-gray-400 hover:text-gray-600">Cancelar</button>
@@ -684,10 +691,12 @@ export default function Admin({ usuario, onLogout }) {
                     <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
                       {c.pedidos.length} pedido{c.pedidos.length !== 1 ? 's' : ''}
                     </span>
-                    <button onClick={() => abrirComprobante(c.id, c.nombre)}
-                      className="text-xs bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700">
-                      Comprobante
-                    </button>
+                    {!esEmpleado && (
+                      <button onClick={() => abrirComprobante(c.id, c.nombre)}
+                        className="text-xs bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700">
+                        Comprobante
+                      </button>
+                    )}
                   </div>
                 </div>
                 <div className="space-y-2">
