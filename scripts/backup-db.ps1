@@ -43,10 +43,17 @@ Write-Host "Backup local creado correctamente."
 $Auth = [System.Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes("$($NextcloudUser):$($NextcloudPass)"))
 $Headers = @{ Authorization = "Basic $Auth" }
 
+$FolderUrl = "$NextcloudUrl/remote.php/dav/files/$NextcloudUser/$NextcloudFolder"
 try {
-    Invoke-WebRequest -Uri "$NextcloudUrl/remote.php/dav/files/$NextcloudUser/$NextcloudFolder" -Method "MKCOL" -Headers $Headers -ErrorAction SilentlyContinue | Out-Null
+    Invoke-WebRequest -Uri $FolderUrl -Method "MKCOL" -Headers $Headers -ErrorAction Stop | Out-Null
+    Write-Host "Carpeta '$NextcloudFolder' creada en el NAS."
 } catch {
-    # La carpeta ya existe, seguimos
+    $StatusCode = $_.Exception.Response.StatusCode.value__
+    if ($StatusCode -eq 405) {
+        Write-Host "La carpeta '$NextcloudFolder' ya existe en el NAS."
+    } else {
+        Write-Host "ADVERTENCIA al crear carpeta: $_"
+    }
 }
 
 # --- Subir el backup al NAS ---
